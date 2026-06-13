@@ -103,6 +103,8 @@ const T = {
     rateTable: 'ตารางอัตราค่าบริการ', rates: 'อัตราค่าบริการ',
     searchPh: 'ค้นหา ชื่อลูกค้า / เลขที่ใบเสนอราคา...',
     statAll: 'ใบเสนอราคาทั้งหมด', statValue: 'มูลค่ารวม', statMonth: 'เดือนนี้',
+    incomeThisMonth: 'รายรับเดือนนี้', outstandingShort: 'ค้างรับจากลูกค้า',
+    cStatus: 'สถานะ', stPaid: 'จ่ายครบ', stPartial: 'จ่ายบางส่วน', stUnpaid: 'ยังไม่จ่าย', tipReceive: 'รับเงิน',
     loading: 'กำลังโหลด...', emptySearch: 'ไม่พบใบเสนอราคาที่ค้นหา', emptyNone: 'ยังไม่มีใบเสนอราคา เริ่มสร้างใบแรกได้เลย',
     createQuote: 'สร้างใบเสนอราคา',
     cNo: 'เลขที่', cCustomer: 'ลูกค้า', cAddress: 'ที่อยู่', cDate: 'วันที่', cTotal: 'รวม', cManage: 'จัดการ',
@@ -130,6 +132,8 @@ const T = {
     rateTable: 'Service Rate Table', rates: 'Rates',
     searchPh: 'Search customer / quotation no...',
     statAll: 'Total Quotations', statValue: 'Total Value', statMonth: 'This Month',
+    incomeThisMonth: 'Income This Month', outstandingShort: 'Outstanding',
+    cStatus: 'Status', stPaid: 'Paid', stPartial: 'Partial', stUnpaid: 'Unpaid', tipReceive: 'Receive payment',
     loading: 'Loading...', emptySearch: 'No matching quotations', emptyNone: 'No quotations yet. Create your first one!',
     createQuote: 'Create Quotation',
     cNo: 'No.', cCustomer: 'Customer', cAddress: 'Address', cDate: 'Date', cTotal: 'Total', cManage: 'Actions',
@@ -1197,8 +1201,18 @@ export default function QuotationSystem() {
   }
 
   if (view === 'list') {
+    // ===== ข้อมูลการเงินสำหรับหน้าหลัก =====
+    const receivedByQ = {};
+    transactions.filter((t) => t.type === 'in' && t.quotationId).forEach((t) => { receivedByQ[t.quotationId] = (receivedByQ[t.quotationId] || 0) + (Number(t.amount) || 0); });
+    const qStatus = (q) => { const rec = receivedByQ[q.id] || 0; const tot = Number(q.total) || 0; const out = tot - rec; if (tot > 0 && rec >= tot) return { key: 'paid', out: 0 }; if (rec > 0) return { key: 'partial', out }; return { key: 'unpaid', out }; };
+    const STATUS_STYLE = { paid: 'bg-emerald-100 text-emerald-700', partial: 'bg-amber-100 text-amber-700', unpaid: 'bg-stone-100 text-stone-500' };
+    const STATUS_KEY = { paid: 'stPaid', partial: 'stPartial', unpaid: 'stUnpaid' };
+    const ymNow = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}`;
+    const incomeThisMonth = transactions.filter((t) => t.type === 'in' && ymOf(t.date) === ymNow).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const totalOutstanding = quotations.reduce((s, q) => s + Math.max(0, (Number(q.total) || 0) - (receivedByQ[q.id] || 0)), 0);
     return (
       <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+        <TxnModal />
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap');
           * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }
@@ -1268,25 +1282,23 @@ export default function QuotationSystem() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <div className="bg-white border border-stone-200 rounded-lg p-4">
-              <p className="text-stone-500 text-sm">{t('statAll')}</p>
-              <p className="text-3xl font-bold text-stone-900">{quotations.length}</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white border border-stone-200 rounded-lg p-4 border-l-4 border-l-slate-700">
+              <p className="text-stone-500 text-sm flex items-center gap-1.5"><FileText size={15} /> {t('statAll')}</p>
+              <p className="text-3xl font-bold text-stone-900 mt-1">{quotations.length}</p>
             </div>
-            <div className="bg-white border border-stone-200 rounded-lg p-4">
+            <div className="bg-white border border-stone-200 rounded-lg p-4 border-l-4 border-l-stone-400">
               <p className="text-stone-500 text-sm">{t('statValue')}</p>
-              <p className="text-3xl font-bold text-emerald-700">{quotations.reduce((s, q) => s + (q.total || 0), 0).toLocaleString('th-TH')} ฿</p>
+              <p className="text-2xl font-bold text-stone-800 mt-1">{quotations.reduce((s, q) => s + (q.total || 0), 0).toLocaleString('th-TH')} ฿</p>
             </div>
-            <div className="bg-white border border-stone-200 rounded-lg p-4">
-              <p className="text-stone-500 text-sm">{t('statMonth')}</p>
-              <p className="text-3xl font-bold text-stone-900">
-                {quotations.filter(q => {
-                  const d = new Date(q.savedAt);
-                  const now = new Date();
-                  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                }).length}
-              </p>
-            </div>
+            <button onClick={() => setView('finance')} className="text-left bg-white border border-stone-200 rounded-lg p-4 border-l-4 border-l-emerald-600 hover:border-stone-300 transition">
+              <p className="text-stone-500 text-sm flex items-center gap-1.5"><TrendingUp size={15} className="text-emerald-600" /> {t('incomeThisMonth')}</p>
+              <p className="text-2xl font-bold text-emerald-700 mt-1">{baht(incomeThisMonth)} ฿</p>
+            </button>
+            <button onClick={() => setView('finance')} className="text-left bg-amber-50 border border-amber-200 rounded-lg p-4 border-l-4 border-l-amber-500 hover:border-amber-300 transition">
+              <p className="text-amber-800 text-sm flex items-center gap-1.5"><Wallet size={15} /> {t('outstandingShort')}</p>
+              <p className="text-2xl font-bold text-amber-700 mt-1">{baht(totalOutstanding)} ฿</p>
+            </button>
           </div>
 
           {loading ? (
@@ -1311,19 +1323,27 @@ export default function QuotationSystem() {
                     <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700 hidden md:table-cell">{t('cAddress')}</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700 hidden sm:table-cell">{t('cDate')}</th>
                     <th className="text-right px-4 py-3 text-sm font-semibold text-stone-700">{t('cTotal')}</th>
+                    <th className="text-center px-4 py-3 text-sm font-semibold text-stone-700">{t('cStatus')}</th>
                     <th className="text-center px-4 py-3 text-sm font-semibold text-stone-700">{t('cManage')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredQuotations.map((q) => (
+                  {filteredQuotations.map((q) => {
+                    const st = qStatus(q);
+                    return (
                     <tr key={q.id} className="border-b border-stone-100 hover:bg-stone-50">
                       <td className="px-4 py-3 font-mono text-sm">{q.quotationNo}</td>
                       <td className="px-4 py-3 font-semibold">{q.customerName}</td>
                       <td className="px-4 py-3 text-sm text-stone-600 hidden md:table-cell max-w-xs truncate">{q.address}</td>
                       <td className="px-4 py-3 text-sm text-stone-600 hidden sm:table-cell">{formatDate(q.date)}</td>
                       <td className="px-4 py-3 text-right font-semibold text-emerald-700">{Number(q.total || 0).toLocaleString('th-TH')} ฿</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_STYLE[st.key]}`}>{t(STATUS_KEY[st.key])}</span>
+                        {st.out > 0 && <div className="text-xs text-amber-700 mt-1">{t('owe')} {baht(st.out)} ฿</div>}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-center gap-1">
+                          <button onClick={() => setTxnForm({ ...newTxn('in'), quotationId: q.id, quotationLabel: `${q.customerName || ''}${q.project ? ' · ' + q.project : ''}`, amount: Math.max(0, (Number(q.total) || 0) - (receivedByQ[q.id] || 0)) || '' })} className="p-2 hover:bg-emerald-100 rounded text-emerald-700" title={t('tipReceive')}><TrendingUp size={16} /></button>
                           <button onClick={() => previewQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipView')}><Eye size={16} /></button>
                           <button onClick={() => duplicateQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipCopy')}><Copy size={16} /></button>
                           <button onClick={() => editQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipEdit')}><FileText size={16} /></button>
@@ -1331,7 +1351,7 @@ export default function QuotationSystem() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  ); })}
                 </tbody>
               </table>
             </div>
