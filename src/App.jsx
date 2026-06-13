@@ -1165,8 +1165,7 @@ export default function QuotationSystem() {
             <div className="flex-1 text-center">
               <h1 className="text-xl font-bold text-stone-900">{form.companyName || settings.companyName}</h1>
               <p className="text-sm text-stone-700 mt-1">{form.companyAddress || settings.companyAddress}</p>
-              <p className="text-sm text-stone-700">โทร: {form.companyPhone || settings.companyPhone}</p>
-              <p className="text-sm text-stone-700">เลขประจำตัวผู้เสียภาษีอากร {form.companyTaxId || settings.companyTaxId}</p>
+              <p className="text-sm text-stone-700">โทร: {form.companyPhone || settings.companyPhone} เลขประจำตัวผู้เสียภาษีอากร {form.companyTaxId || settings.companyTaxId}</p>
             </div>
             <div className="flex-shrink-0" style={{ width: '72px' }} aria-hidden="true"></div>
           </div>
@@ -1257,7 +1256,12 @@ export default function QuotationSystem() {
               {/* ฝั่งซ้าย: หมายเหตุและงวดงาน */}
               <div className="flex-1">
                 <p className="font-bold underline mb-2">หมายเหตุ / Notes</p>
-                <p className="mb-3">1. โอนผ่านบัญชีธนาคาร <strong>{form.bankInfo}</strong></p>
+                <p className="mb-3">1. โอนผ่านบัญชีธนาคาร {(() => {
+                  const bi = form.bankInfo || '';
+                  const i = bi.indexOf('เลขที่บัญชี');
+                  if (i === -1) return <strong>{bi}</strong>;
+                  return <><strong>{bi.slice(0, i).trim()}</strong><br /><strong>{bi.slice(i)}</strong></>;
+                })()}</p>
                 <div className="mb-3">
                   <p>2. งวดงานแบ่งดังนี้ / Payment installments:</p>
                   <div className="ml-4 mt-1">
