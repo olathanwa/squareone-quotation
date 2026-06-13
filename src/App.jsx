@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Plus, Trash2, Save, ArrowLeft, Printer, Search, Copy, Eye, Calculator, Info, QrCode, Settings, Wallet, TrendingUp, TrendingDown, Calendar, X, Paperclip } from 'lucide-react';
+import { FileText, Plus, Trash2, Save, ArrowLeft, Printer, Search, Copy, Eye, Calculator, Info, QrCode, Settings, Wallet, TrendingUp, TrendingDown, Calendar, X, Paperclip, Download } from 'lucide-react';
 import { cloudStorage } from './supabase';
 
 // ===== QR Code PromptPay สแควร์วัน อินสเปคเตอร์ =====
@@ -125,6 +125,8 @@ const T = {
     channel: 'ช่องทาง', note: 'โน้ต', notePh: 'รายละเอียดเพิ่มเติม',
     attachSlip: 'แนบสลิป / หลักฐาน (ถ้ามี)', chooseSlip: 'เลือกรูปสลิป', compressing: 'กำลังย่อรูป…',
     cancel: 'ยกเลิก', save: 'บันทึก', yearWord: 'ปี',
+    filterAll: 'ทั้งหมด', sortNewest: 'ล่าสุดก่อน', sortOldest: 'เก่าสุดก่อน', sortHighest: 'ยอดมากสุด',
+    exportCsv: 'ส่งออก Excel', printReport: 'พิมพ์รายงาน', sortBy: 'เรียงโดย',
   },
   en: {
     appSub: 'INSPECTOR AND DESIGNER · Quotation System',
@@ -154,6 +156,8 @@ const T = {
     channel: 'Channel', note: 'Note', notePh: 'Additional details',
     attachSlip: 'Attach slip / proof (optional)', chooseSlip: 'Choose slip image', compressing: 'Compressing…',
     cancel: 'Cancel', save: 'Save', yearWord: 'Year',
+    filterAll: 'All', sortNewest: 'Newest first', sortOldest: 'Oldest first', sortHighest: 'Highest amount',
+    exportCsv: 'Export Excel', printReport: 'Print report', sortBy: 'Sort by',
   },
 };
 const baht = (n) => (Number(n) || 0).toLocaleString('th-TH');
@@ -179,6 +183,43 @@ const compressImage = (file, maxDim = 1100, q = 0.6) => new Promise((res, rej) =
   r.onerror = rej; r.readAsDataURL(file);
 });
 
+// ดาวน์โหลดไฟล์ (CSV/HTML)
+const downloadFile = (text, name, mime) => {
+  try {
+    const b = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+    const u = URL.createObjectURL(b);
+    const a = document.createElement('a');
+    a.href = u; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(u); }, 1500);
+  } catch (e) { console.error(e); }
+};
+const csvCell = (s) => `"${String(s == null ? '' : s).replace(/"/g, '""')}"`;
+
+// รายงานสรุปการเงินแบบพิมพ์ได้ (กระดาษขาวเสมอ)
+const buildFinanceReportHTML = ({ companyName, periodLabel, totalIn, totalOut, net, outstanding, txns, lang }) => {
+  const en = lang === 'en';
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+  const n2 = (n) => (Number(n) || 0).toLocaleString('th-TH');
+  const L = en
+    ? { title: 'Finance Report', income: 'Income', expense: 'Expense', net: 'Net Balance', outstanding: 'Outstanding', date: 'Date', type: 'Type', detail: 'Detail', project: 'Project', method: 'Method', amount: 'Amount', inc: 'Income', exp: 'Expense', print: 'Print / Save PDF', noTxn: 'No transactions', generated: 'Generated' }
+    : { title: 'รายงานสรุปการเงิน', income: 'รายรับ', expense: 'รายจ่าย', net: 'คงเหลือสุทธิ', outstanding: 'ค้างรับจากลูกค้า', date: 'วันที่', type: 'ประเภท', detail: 'รายละเอียด', project: 'โครงการ', method: 'ช่องทาง', amount: 'จำนวนเงิน (บาท)', inc: 'รับ', exp: 'จ่าย', print: 'พิมพ์ / บันทึก PDF', noTxn: 'ไม่มีรายการ', generated: 'ออกรายงาน' };
+  const rows = txns.length ? txns.map((t) => `<tr><td>${esc(t.date)}</td><td style="color:${t.type === 'in' ? '#067a4e' : '#b5341a'}">${t.type === 'in' ? L.inc : L.exp}</td><td>${esc(t.type === 'in' ? (t.installment || t.quotationLabel || '') : (t.category || ''))}</td><td>${esc(t.quotationLabel || '')}</td><td>${esc(t.method || '')}</td><td style="text-align:right">${n2(t.amount)}</td></tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:#999;padding:16px">${L.noTxn}</td></tr>`;
+  return `<!doctype html><html lang="${en ? 'en' : 'th'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${L.title} ${esc(periodLabel)}</title>
+<style>body{font-family:-apple-system,'Segoe UI',Tahoma,sans-serif;color:#1B2430;max-width:780px;margin:0 auto;padding:28px 24px;line-height:1.5}h1{font-size:20px;margin:0 0 2px}.muted{color:#667;font-size:13px}.cards{display:flex;gap:10px;margin:18px 0;flex-wrap:wrap}.card{flex:1;min-width:140px;border:1px solid #e3ddd2;border-radius:10px;padding:12px}.card .lab{color:#667;font-size:12px}.card .val{font-size:18px;font-weight:700;margin-top:3px}table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}th,td{text-align:left;padding:8px;border-bottom:1px solid #eee}th{background:#f6f3ec}.btn{position:fixed;top:14px;right:14px;background:#0f766e;color:#fff;border:none;padding:10px 16px;border-radius:8px;cursor:pointer}@media print{.btn{display:none}}</style></head>
+<body><button class="btn" onclick="window.print()">${L.print}</button>
+<h1>${esc(companyName || 'SquareOne')}</h1>
+<div class="muted">${L.title} · ${esc(periodLabel)}</div>
+<div class="cards">
+<div class="card"><div class="lab">${L.income}</div><div class="val" style="color:#067a4e">${n2(totalIn)} ฿</div></div>
+<div class="card"><div class="lab">${L.expense}</div><div class="val" style="color:#b5341a">${n2(totalOut)} ฿</div></div>
+<div class="card"><div class="lab">${L.net}</div><div class="val">${n2(net)} ฿</div></div>
+<div class="card"><div class="lab">${L.outstanding}</div><div class="val" style="color:#b5670a">${n2(outstanding)} ฿</div></div>
+</div>
+<table><thead><tr><th>${L.date}</th><th>${L.type}</th><th>${L.detail}</th><th>${L.project}</th><th>${L.method}</th><th style="text-align:right">${L.amount}</th></tr></thead><tbody>${rows}</tbody></table>
+</body></html>`;
+};
+
 export default function QuotationSystem() {
   const [view, setView] = useState('list');
   const [quotations, setQuotations] = useState([]);
@@ -197,6 +238,8 @@ export default function QuotationSystem() {
   const nowD = new Date();
   const [selYear, setSelYear] = useState(String(nowD.getFullYear()));
   const [selMonth, setSelMonth] = useState(String(nowD.getMonth() + 1).padStart(2, '0'));
+  const [txnFilter, setTxnFilter] = useState('all'); // all | in | out
+  const [txnSort, setTxnSort] = useState('dateDesc'); // dateDesc | dateAsc | amountDesc
   // ===== ภาษา (ไทย/อังกฤษ) =====
   const [lang, setLang] = useState('th');
   const t = (k, ...args) => { const v = (T[lang] || T.th)[k]; return typeof v === 'function' ? v(...args) : (v ?? k); };
@@ -901,6 +944,30 @@ export default function QuotationSystem() {
     }) : null;
     const yearDisp = (y) => lang === 'en' ? y : (Number(y) + 543);
     const periodLabel = periodMode === 'all' ? t('allLabel') : periodMode === 'year' ? `${t('yearWord')} ${yearDisp(selYear)}` : `${MONTHS[Number(selMonth) - 1]} ${yearDisp(selYear)}`;
+    // กรอง + เรียง รายการที่จะแสดง/ส่งออก
+    let viewTxns = periodTxns.filter((t) => txnFilter === 'all' || t.type === txnFilter);
+    viewTxns = [...viewTxns].sort((a, b) => {
+      if (txnSort === 'amountDesc') return (Number(b.amount) || 0) - (Number(a.amount) || 0);
+      if (txnSort === 'dateAsc') return (a.date || '').localeCompare(b.date || '');
+      return (b.date || '').localeCompare(a.date || ''); // dateDesc
+    });
+    const exportTxnCSV = () => {
+      const header = ['Date', 'Type', 'Detail', 'Project', 'Method', 'Amount', 'Note'];
+      const lines = [header.map(csvCell).join(',')];
+      viewTxns.forEach((tx) => lines.push([
+        tx.date, tx.type === 'in' ? 'Income' : 'Expense',
+        tx.type === 'in' ? (tx.installment || tx.quotationLabel || '') : (tx.category || ''),
+        tx.quotationLabel || '', tx.method || '', Number(tx.amount) || 0, tx.note || '',
+      ].map(csvCell).join(',')));
+      // ﻿ = BOM ให้ Excel อ่านภาษาไทยถูก
+      downloadFile('﻿' + lines.join('\r\n'), `finance-${periodLabel}.csv`, 'text/csv;charset=utf-8');
+    };
+    const printFinanceReport = () => {
+      const html = buildFinanceReportHTML({ companyName: settings.companyName, periodLabel, totalIn, totalOut, net, outstanding: totalOutstanding, txns: viewTxns, lang });
+      const w = window.open('', '_blank');
+      if (w) { w.document.write(html); w.document.close(); }
+      else downloadFile(html, `finance-report-${periodLabel}.html`, 'text/html;charset=utf-8');
+    };
 
     return (
       <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
@@ -988,15 +1055,33 @@ export default function QuotationSystem() {
           )}
 
           {/* รายการเงินในช่วงที่เลือก */}
-          <p className="font-semibold text-stone-800 mb-3">{t('txnList')} · {periodLabel} ({periodTxns.length})</p>
-          {periodTxns.length === 0 ? (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <p className="font-semibold text-stone-800">{t('txnList')} · {periodLabel} ({viewTxns.length})</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={exportTxnCSV} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-sm text-stone-700 hover:bg-stone-50"><Download size={14} /> {t('exportCsv')}</button>
+              <button onClick={printFinanceReport} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-sm text-stone-700 hover:bg-stone-50"><Printer size={14} /> {t('printReport')}</button>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className="flex rounded-lg overflow-hidden border border-stone-300">
+              {[['all', t('filterAll')], ['in', t('income')], ['out', t('expense')]].map(([k, l]) => (
+                <button key={k} onClick={() => setTxnFilter(k)} className={`px-3 py-1.5 text-sm font-medium ${txnFilter === k ? 'bg-slate-900 text-amber-200' : 'bg-white text-stone-600'}`}>{l}</button>
+              ))}
+            </div>
+            <select value={txnSort} onChange={(e) => setTxnSort(e.target.value)} className="px-3 py-1.5 border border-stone-300 rounded-lg bg-white text-sm" title={t('sortBy')}>
+              <option value="dateDesc">{t('sortNewest')}</option>
+              <option value="dateAsc">{t('sortOldest')}</option>
+              <option value="amountDesc">{t('sortHighest')}</option>
+            </select>
+          </div>
+          {viewTxns.length === 0 ? (
             <div className="bg-white border border-stone-200 rounded-lg p-10 text-center text-stone-400">
               <Wallet size={40} className="mx-auto mb-2 opacity-40" />
               {t('emptyTxn')}
             </div>
           ) : (
             <div className="space-y-2">
-              {periodTxns.map((tx) => {
+              {viewTxns.map((tx) => {
                 const methodLabel = lang === 'en' ? (METHOD_LABEL[tx.method] || tx.method) : tx.method;
                 const catLabel = lang === 'en' ? (CAT_LABEL[tx.category] || tx.category) : tx.category;
                 return (
