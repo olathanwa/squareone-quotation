@@ -200,6 +200,7 @@ export default function QuotationSystem() {
   // ===== ภาษา (ไทย/อังกฤษ) =====
   const [lang, setLang] = useState('th');
   const t = (k, ...args) => { const v = (T[lang] || T.th)[k]; return typeof v === 'function' ? v(...args) : (v ?? k); };
+  const bi = (th, en) => (lang === 'en' ? en : th); // เลือกข้อความตามภาษา (สำหรับป้ายในฟอร์ม)
   const MONTHS = lang === 'en' ? EN_MONTHS : THAI_MONTHS;
   const toggleLang = () => { const next = lang === 'th' ? 'en' : 'th'; setLang(next); try { window.storage.set('app:lang', next); } catch { /* ignore */ } };
   // ===== ธีม (สว่าง/มืด) =====
@@ -638,7 +639,7 @@ export default function QuotationSystem() {
             <p>EMAIL: SQ1.INSPECTOR@gmail.com</p>
           </div>
           <button onClick={() => setShowRateTable(false)} className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded font-semibold">
-            ปิด / Close
+            {bi('ปิด', 'Close')}
           </button>
         </div>
       </div>
@@ -658,8 +659,8 @@ export default function QuotationSystem() {
         <div className="bg-slate-900 text-white p-5 rounded-t-lg flex items-center gap-3">
           <Settings size={24} className="text-amber-300" />
           <div>
-            <h3 className="text-xl font-bold tracking-wide">ตั้งค่าระบบ / Settings</h3>
-            <p className="text-stone-400 text-sm mt-1">ข้อมูลบริษัทและบัญชีธนาคารที่จะใช้กับใบเสนอราคาใหม่</p>
+            <h3 className="text-xl font-bold tracking-wide">{bi('ตั้งค่าระบบ', 'Settings')}</h3>
+            <p className="text-stone-400 text-sm mt-1">{bi('ข้อมูลบริษัทและบัญชีธนาคารที่จะใช้กับใบเสนอราคาใหม่', 'Company info and bank account used on new quotations')}</p>
           </div>
         </div>
         
@@ -667,31 +668,31 @@ export default function QuotationSystem() {
           {/* บัญชีธนาคาร */}
           <div className="border border-amber-300 bg-amber-50 rounded-lg p-4">
             <h4 className="font-semibold text-stone-900 mb-3 flex items-center gap-2">
-              💳 บัญชีรับเงิน / Bank Account
+              💳 {bi('บัญชีรับเงิน', 'Bank Account')}
             </h4>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">ชื่อธนาคาร / Bank Name</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อธนาคาร', 'Bank Name')}</label>
                 <input
                   type="text"
                   value={settingsForm.bankName}
                   onChange={(e) => setSettingsForm({ ...settingsForm, bankName: e.target.value })}
-                  placeholder="เช่น ธนาคารกสิกรไทย"
+                  placeholder={bi('เช่น ธนาคารกสิกรไทย', 'e.g. Kasikornbank')}
                   className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">ชื่อบัญชี / Account Name</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อบัญชี', 'Account Name')}</label>
                 <input
                   type="text"
                   value={settingsForm.accountName}
                   onChange={(e) => setSettingsForm({ ...settingsForm, accountName: e.target.value })}
-                  placeholder="เช่น บริษัท สแควร์วัน ดีไซน์ แอนด์ อินสเปคเตอร์ จำกัด"
+                  placeholder={bi('เช่น บริษัท สแควร์วัน ดีไซน์ แอนด์ อินสเปคเตอร์ จำกัด', 'e.g. SquareOne Design and Inspector Co., Ltd.')}
                   className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">เลขที่บัญชี / Account Number</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">{bi('เลขที่บัญชี', 'Account Number')}</label>
                 <input
                   type="text"
                   value={settingsForm.accountNumber}
@@ -701,7 +702,7 @@ export default function QuotationSystem() {
                 />
               </div>
               <div className="bg-white border border-amber-200 rounded p-3 text-sm">
-                <p className="text-stone-500 text-xs mb-1">ตัวอย่างที่จะแสดงในใบเสนอราคา:</p>
+                <p className="text-stone-500 text-xs mb-1">{bi('ตัวอย่างที่จะแสดงในใบเสนอราคา:', 'Preview shown on the quotation:')}</p>
                 <p className="text-stone-900">{buildBankInfo(settingsForm)}</p>
               </div>
             </div>
@@ -710,11 +711,11 @@ export default function QuotationSystem() {
           {/* ข้อมูลบริษัท */}
           <div className="border border-stone-300 rounded-lg p-4">
             <h4 className="font-semibold text-stone-900 mb-3 flex items-center gap-2">
-              🏢 ข้อมูลบริษัท / Company Info
+              🏢 {bi('ข้อมูลบริษัท', 'Company Info')}
             </h4>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">ชื่อบริษัท</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อบริษัท', 'Company Name')}</label>
                 <input
                   type="text"
                   value={settingsForm.companyName}
@@ -723,7 +724,7 @@ export default function QuotationSystem() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">ที่อยู่บริษัท</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ที่อยู่บริษัท', 'Company Address')}</label>
                 <textarea
                   value={settingsForm.companyAddress}
                   onChange={(e) => setSettingsForm({ ...settingsForm, companyAddress: e.target.value })}
@@ -733,7 +734,7 @@ export default function QuotationSystem() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1">เบอร์โทร</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">{bi('เบอร์โทร', 'Phone')}</label>
                   <input
                     type="text"
                     value={settingsForm.companyPhone}
@@ -742,7 +743,7 @@ export default function QuotationSystem() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1">เลขประจำตัวผู้เสียภาษี</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">{bi('เลขประจำตัวผู้เสียภาษี', 'Tax ID')}</label>
                   <input
                     type="text"
                     value={settingsForm.companyTaxId}
@@ -756,8 +757,8 @@ export default function QuotationSystem() {
 
           {/* คำเตือน */}
           <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-900">
-            <p className="font-semibold mb-1">ℹ️ ข้อมูลเหล่านี้จะถูกใช้กับใบเสนอราคาใหม่ที่สร้างต่อจากนี้</p>
-            <p className="text-xs">ใบเสนอราคาเก่าจะยังเก็บข้อมูลตอนที่สร้างไว้ ถ้าต้องการอัปเดต ให้กดเข้าไปที่แต่ละใบ</p>
+            <p className="font-semibold mb-1">ℹ️ {bi('ข้อมูลเหล่านี้จะถูกใช้กับใบเสนอราคาใหม่ที่สร้างต่อจากนี้', 'These details apply to quotations created from now on')}</p>
+            <p className="text-xs">{bi('ใบเสนอราคาเก่าจะยังเก็บข้อมูลตอนที่สร้างไว้ ถ้าต้องการอัปเดต ให้กดเข้าไปที่แต่ละใบ', 'Older quotations keep the info from when they were created — open each one to update.')}</p>
           </div>
 
           {/* ปุ่ม */}
@@ -766,19 +767,19 @@ export default function QuotationSystem() {
               onClick={resetSettings}
               className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded font-semibold text-sm"
             >
-              คืนค่าเริ่มต้น
+              {bi('คืนค่าเริ่มต้น', 'Reset')}
             </button>
             <button
               onClick={() => { setSettingsForm(settings); setShowSettings(false); }}
               className="flex-1 px-4 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 rounded font-semibold"
             >
-              ยกเลิก
+              {t('cancel')}
             </button>
             <button
               onClick={saveSettings}
               className="flex-1 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-semibold"
             >
-              บันทึก / Save
+              {t('save')}
             </button>
           </div>
         </div>
@@ -1374,10 +1375,10 @@ export default function QuotationSystem() {
       <div className="bg-slate-900 text-stone-50">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <button onClick={() => setView('list')} className="flex items-center gap-2 text-stone-300 hover:text-white">
-            <ArrowLeft size={18} /> กลับ
+            <ArrowLeft size={18} /> {t('back')}
           </button>
-          <h1 className="text-lg font-semibold">{editingId ? 'แก้ไขใบเสนอราคา' : 'สร้างใบเสนอราคา'}</h1>
-          <button onClick={() => setShowRateTable(true)} className="text-amber-300 hover:text-amber-200" title="ดูตารางค่าบริการ">
+          <h1 className="text-lg font-semibold">{editingId ? bi('แก้ไขใบเสนอราคา', 'Edit Quotation') : t('createQuote')}</h1>
+          <button onClick={() => setShowRateTable(true)} className="text-amber-300 hover:text-amber-200" title={bi('ดูตารางค่าบริการ', 'View rate table')}>
             <Info size={20} />
           </button>
         </div>
@@ -1385,41 +1386,41 @@ export default function QuotationSystem() {
 
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
         <div className="bg-white border border-stone-200 rounded-lg p-6">
-          <h3 className="font-semibold text-stone-900 mb-4 pb-2 border-b border-stone-200">ข้อมูลทั่วไป / General Info</h3>
+          <h3 className="font-semibold text-stone-900 mb-4 pb-2 border-b border-stone-200">{bi('ข้อมูลทั่วไป', 'General Info')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">เลขที่ใบเสนอราคา</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">{bi('เลขที่ใบเสนอราคา', 'Quotation No.')}</label>
               <input type="text" value={form.quotationNo} onChange={(e) => setForm({ ...form, quotationNo: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">วันที่</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">{bi('วันที่', 'Date')}</label>
               <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">โครงการ</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">{bi('โครงการ', 'Project')}</label>
               <input type="text" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">เงื่อนไขการชำระเงิน</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">{bi('เงื่อนไขการชำระเงิน', 'Payment Terms')}</label>
               <select value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700">
-                <option value="โอน">โอน / Transfer</option>
-                <option value="เงินสด">เงินสด / Cash</option>
-                <option value="เครดิต 30 วัน">เครดิต 30 วัน</option>
+                <option value="โอน">{bi('โอน', 'Transfer')}</option>
+                <option value="เงินสด">{bi('เงินสด', 'Cash')}</option>
+                <option value="เครดิต 30 วัน">{bi('เครดิต 30 วัน', 'Credit 30 days')}</option>
               </select>
             </div>
           </div>
         </div>
 
         <div className="bg-white border border-stone-200 rounded-lg p-6">
-          <h3 className="font-semibold text-stone-900 mb-4 pb-2 border-b border-stone-200">ข้อมูลลูกค้า / Customer</h3>
+          <h3 className="font-semibold text-stone-900 mb-4 pb-2 border-b border-stone-200">{bi('ข้อมูลลูกค้า', 'Customer')}</h3>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">ชื่อลูกค้า *</label>
-              <input type="text" value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} placeholder="เช่น คุณสิทธาวุฒิ มีสุข" className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+              <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อลูกค้า', 'Customer Name')} *</label>
+              <input type="text" value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} placeholder={bi('เช่น คุณสิทธาวุฒิ มีสุข', 'e.g. John Smith')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">ที่อยู่</label>
-              <textarea value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="เช่น อ.แม่ริม จ.เชียงใหม่" rows="2" className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+              <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ที่อยู่', 'Address')}</label>
+              <textarea value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder={bi('เช่น อ.แม่ริม จ.เชียงใหม่', 'e.g. Mae Rim, Chiang Mai')} rows="2" className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
             </div>
           </div>
         </div>
@@ -1428,28 +1429,28 @@ export default function QuotationSystem() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Calculator className="text-amber-700" size={20} />
-              <h3 className="font-semibold text-stone-900">คำนวณราคาอัตโนมัติ / Auto Rate Calculator</h3>
+              <h3 className="font-semibold text-stone-900">{bi('คำนวณราคาอัตโนมัติ', 'Auto Rate Calculator')}</h3>
             </div>
             <button type="button" onClick={() => setShowRateTable(true)} className="text-amber-700 hover:text-amber-900 text-sm flex items-center gap-1">
-              <Info size={14} /> ดูตารางอัตรา
+              <Info size={14} /> {bi('ดูตารางอัตรา', 'View rates')}
             </button>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">ประเภทอาคาร / Property Type</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ประเภทอาคาร', 'Property Type')}</label>
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => handleTypeChange('house')} className={`px-4 py-2 rounded font-semibold transition ${form.propertyType === 'house' ? 'bg-slate-900 text-white' : 'bg-white border border-stone-300 text-stone-700 hover:border-stone-500'}`}>
-                  🏠 บ้าน
+                  🏠 {bi('บ้าน', 'House')}
                 </button>
                 <button type="button" onClick={() => handleTypeChange('condo')} className={`px-4 py-2 rounded font-semibold transition ${form.propertyType === 'condo' ? 'bg-slate-900 text-white' : 'bg-white border border-stone-300 text-stone-700 hover:border-stone-500'}`}>
-                  🏢 คอนโด
+                  🏢 {bi('คอนโด', 'Condo')}
                 </button>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">พื้นที่ใช้สอย (ตร.ม.)</label>
-              <input type="number" value={form.propertyArea} onChange={(e) => handleAreaChange(e.target.value)} placeholder={form.propertyType === 'house' ? "เช่น 121" : "เช่น 35"} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+              <label className="block text-sm font-medium text-stone-700 mb-1">{bi('พื้นที่ใช้สอย (ตร.ม.)', 'Usable Area (sq.m.)')}</label>
+              <input type="number" value={form.propertyArea} onChange={(e) => handleAreaChange(e.target.value)} placeholder={form.propertyType === 'house' ? bi('เช่น 121', 'e.g. 121') : bi('เช่น 35', 'e.g. 35')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
             </div>
           </div>
 
@@ -1457,11 +1458,11 @@ export default function QuotationSystem() {
             <div className={`mt-4 p-3 rounded ${areaInRange ? 'bg-emerald-100 border border-emerald-300' : 'bg-red-100 border border-red-300'}`}>
               {areaInRange ? (
                 <p className="text-emerald-900 text-sm">
-                  ✓ ราคาตรวจสอบ: <span className="font-bold text-lg">{currentRate.toLocaleString()} บาท</span>
-                  {' '}<span className="text-stone-600">(สำหรับ{form.propertyType === 'house' ? 'บ้าน' : 'คอนโด'} {form.propertyArea} ตร.ม.)</span>
+                  ✓ {bi('ราคาตรวจสอบ', 'Inspection price')}: <span className="font-bold text-lg">{currentRate.toLocaleString()} {bi('บาท', 'THB')}</span>
+                  {' '}<span className="text-stone-600">({bi('สำหรับ', 'for ')}{form.propertyType === 'house' ? bi('บ้าน', 'house') : bi('คอนโด', 'condo')} {form.propertyArea} {bi('ตร.ม.', 'sq.m.')})</span>
                 </p>
               ) : (
-                <p className="text-red-900 text-sm">⚠ พื้นที่ {form.propertyArea} ตร.ม. ไม่อยู่ในตารางอัตรา กรุณาระบุราคาเองด้านล่าง</p>
+                <p className="text-red-900 text-sm">⚠ {bi(`พื้นที่ ${form.propertyArea} ตร.ม. ไม่อยู่ในตารางอัตรา กรุณาระบุราคาเองด้านล่าง`, `Area ${form.propertyArea} sq.m. is not in the rate table — please enter the price manually below`)}</p>
               )}
             </div>
           )}
@@ -1469,9 +1470,9 @@ export default function QuotationSystem() {
 
         <div className="bg-white border border-stone-200 rounded-lg p-6">
           <div className="flex justify-between items-center mb-4 pb-2 border-b border-stone-200">
-            <h3 className="font-semibold text-stone-900">รายการสินค้า / Items</h3>
+            <h3 className="font-semibold text-stone-900">{bi('รายการสินค้า', 'Items')}</h3>
             <button onClick={addItem} className="flex items-center gap-1 px-3 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded text-sm">
-              <Plus size={14} /> เพิ่มรายการ
+              <Plus size={14} /> {bi('เพิ่มรายการ', 'Add item')}
             </button>
           </div>
           
@@ -1481,20 +1482,20 @@ export default function QuotationSystem() {
                 <div className="flex items-start gap-2">
                   <span className="font-semibold text-stone-700 mt-2">#{idx + 1}</span>
                   <div className="flex-1 space-y-2">
-                    <input type="text" value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} placeholder="รายละเอียด" className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
-                    <input type="text" value={item.subDescription} onChange={(e) => updateItem(idx, 'subDescription', e.target.value)} placeholder="รายละเอียดเพิ่มเติม" className="w-full px-3 py-2 border border-stone-300 rounded text-sm" />
+                    <input type="text" value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} placeholder={bi('รายละเอียด', 'Description')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                    <input type="text" value={item.subDescription} onChange={(e) => updateItem(idx, 'subDescription', e.target.value)} placeholder={bi('รายละเอียดเพิ่มเติม', 'Additional details')} className="w-full px-3 py-2 border border-stone-300 rounded text-sm" />
                     <div className="grid grid-cols-3 gap-2">
-                      <input type="number" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} placeholder="จำนวน" className="px-3 py-2 border border-stone-300 rounded" />
-                      <input type="text" value={item.unit} onChange={(e) => updateItem(idx, 'unit', e.target.value)} placeholder="หน่วย" className="px-3 py-2 border border-stone-300 rounded" />
+                      <input type="number" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} placeholder={bi('จำนวน', 'Qty')} className="px-3 py-2 border border-stone-300 rounded" />
+                      <input type="text" value={item.unit} onChange={(e) => updateItem(idx, 'unit', e.target.value)} placeholder={bi('หน่วย', 'Unit')} className="px-3 py-2 border border-stone-300 rounded" />
                       <div className="relative">
-                        <input type="number" value={item.price} onChange={(e) => updateItem(idx, 'price', e.target.value)} placeholder="ราคา" className={`w-full px-3 py-2 border rounded ${item.autoCalculated ? 'border-emerald-500 bg-emerald-50' : 'border-stone-300'}`} />
+                        <input type="number" value={item.price} onChange={(e) => updateItem(idx, 'price', e.target.value)} placeholder={bi('ราคา', 'Price')} className={`w-full px-3 py-2 border rounded ${item.autoCalculated ? 'border-emerald-500 bg-emerald-50' : 'border-stone-300'}`} />
                         {item.autoCalculated && idx === 0 && (
                           <span className="absolute -top-2 right-1 text-xs bg-emerald-600 text-white px-1 rounded">auto</span>
                         )}
                       </div>
                     </div>
                     <div className="text-right text-sm">
-                      รวม: <span className="font-semibold">{((Number(item.quantity) || 0) * (Number(item.price) || 0)).toLocaleString('th-TH')} ฿</span>
+                      {bi('รวม', 'Subtotal')}: <span className="font-semibold">{((Number(item.quantity) || 0) * (Number(item.price) || 0)).toLocaleString('th-TH')} ฿</span>
                     </div>
                   </div>
                   {form.items.length > 1 && (
@@ -1510,32 +1511,32 @@ export default function QuotationSystem() {
           <div className="mt-4 pt-4 border-t border-stone-200">
             <label className="flex items-center gap-2 mb-3">
               <input type="checkbox" checked={form.travelFee.enabled} onChange={(e) => setForm({ ...form, travelFee: { ...form.travelFee, enabled: e.target.checked } })} className="w-4 h-4" />
-              <span className="font-medium text-stone-700">มีค่าเดินทาง / Travel Fee</span>
+              <span className="font-medium text-stone-700">{bi('มีค่าเดินทาง', 'Travel Fee')}</span>
             </label>
             {form.travelFee.enabled && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2 ml-6">
-                <input type="text" value={form.travelFee.route} onChange={(e) => setForm({ ...form, travelFee: { ...form.travelFee, route: e.target.value } })} placeholder="เส้นทาง เช่น เชียงใหม่-ลำปาง" className="px-3 py-2 border border-stone-300 rounded" />
-                <input type="number" value={form.travelFee.count} onChange={(e) => setForm({ ...form, travelFee: { ...form.travelFee, count: e.target.value } })} placeholder="จำนวนครั้ง" className="px-3 py-2 border border-stone-300 rounded" />
-                <input type="number" value={form.travelFee.pricePerTrip} onChange={(e) => setForm({ ...form, travelFee: { ...form.travelFee, pricePerTrip: e.target.value } })} placeholder="ราคา/ครั้ง" className="px-3 py-2 border border-stone-300 rounded" />
+                <input type="text" value={form.travelFee.route} onChange={(e) => setForm({ ...form, travelFee: { ...form.travelFee, route: e.target.value } })} placeholder={bi('เส้นทาง เช่น เชียงใหม่-ลำปาง', 'Route e.g. Chiang Mai - Lampang')} className="px-3 py-2 border border-stone-300 rounded" />
+                <input type="number" value={form.travelFee.count} onChange={(e) => setForm({ ...form, travelFee: { ...form.travelFee, count: e.target.value } })} placeholder={bi('จำนวนครั้ง', 'Trips')} className="px-3 py-2 border border-stone-300 rounded" />
+                <input type="number" value={form.travelFee.pricePerTrip} onChange={(e) => setForm({ ...form, travelFee: { ...form.travelFee, pricePerTrip: e.target.value } })} placeholder={bi('ราคา/ครั้ง', 'Price/trip')} className="px-3 py-2 border border-stone-300 rounded" />
               </div>
             )}
           </div>
 
           <div className="mt-4 pt-4 border-t border-stone-200 text-right">
-            <span className="text-stone-600">ยอดรวมทั้งสิ้น: </span>
+            <span className="text-stone-600">{bi('ยอดรวมทั้งสิ้น', 'Grand Total')}: </span>
             <span className="text-2xl font-bold text-emerald-700">{calcSubtotal().toLocaleString('th-TH')} ฿</span>
           </div>
         </div>
 
         <div className="bg-white border border-stone-200 rounded-lg p-6">
           <div className="flex justify-between items-center mb-4 pb-2 border-b border-stone-200">
-            <h3 className="font-semibold text-stone-900">งวดงาน / Installments</h3>
+            <h3 className="font-semibold text-stone-900">{bi('งวดงาน', 'Installments')}</h3>
             <div className="flex gap-2">
-              <button onClick={recalculateInstallments} className="flex items-center gap-1 px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded text-sm" title="คำนวณงวดอัตโนมัติ (มัดจำ ~30%)">
+              <button onClick={recalculateInstallments} className="flex items-center gap-1 px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded text-sm" title={bi('คำนวณงวดอัตโนมัติ (มัดจำ ~30%)', 'Auto-calculate installments (deposit ~30%)')}>
                 <Calculator size={14} /> Auto
               </button>
               <button onClick={addInstallment} className="flex items-center gap-1 px-3 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded text-sm">
-                <Plus size={14} /> เพิ่มงวด
+                <Plus size={14} /> {bi('เพิ่มงวด', 'Add')}
               </button>
             </div>
           </div>
@@ -1543,9 +1544,9 @@ export default function QuotationSystem() {
           <div className="space-y-2">
             {form.installments.map((inst, idx) => (
               <div key={idx} className="flex items-center gap-2 bg-stone-50 p-3 rounded">
-                <span className="font-semibold text-stone-700 w-20">งวดที่ {idx + 1}</span>
-                <input type="text" value={inst.name} onChange={(e) => updateInstallment(idx, 'name', e.target.value)} placeholder="รายละเอียดงวด" className="flex-1 px-3 py-2 border border-stone-300 rounded" />
-                <input type="number" value={inst.amount} onChange={(e) => updateInstallment(idx, 'amount', e.target.value)} placeholder="จำนวนเงิน" className="w-32 px-3 py-2 border border-stone-300 rounded" />
+                <span className="font-semibold text-stone-700 w-20">{bi('งวดที่', 'No.')} {idx + 1}</span>
+                <input type="text" value={inst.name} onChange={(e) => updateInstallment(idx, 'name', e.target.value)} placeholder={bi('รายละเอียดงวด', 'Installment detail')} className="flex-1 px-3 py-2 border border-stone-300 rounded" />
+                <input type="number" value={inst.amount} onChange={(e) => updateInstallment(idx, 'amount', e.target.value)} placeholder={bi('จำนวนเงิน', 'Amount')} className="w-32 px-3 py-2 border border-stone-300 rounded" />
                 {form.installments.length > 1 && (
                   <button onClick={() => removeInstallment(idx)} className="p-2 text-red-600 hover:bg-red-50 rounded">
                     <Trash2 size={16} />
@@ -1556,24 +1557,24 @@ export default function QuotationSystem() {
           </div>
 
           <div className={`mt-4 pt-4 border-t border-stone-200 text-right text-sm ${Math.abs(totalInstallments() - calcSubtotal()) > 0.01 ? 'text-red-600' : 'text-emerald-700'}`}>
-            ยอดรวมงวดงาน: <span className="font-bold">{totalInstallments().toLocaleString('th-TH')} ฿</span>
+            {bi('ยอดรวมงวดงาน', 'Installments total')}: <span className="font-bold">{totalInstallments().toLocaleString('th-TH')} ฿</span>
             {Math.abs(totalInstallments() - calcSubtotal()) > 0.01 && (
-              <span className="block text-xs mt-1">⚠ ไม่ตรงกับยอดรวม ({calcSubtotal().toLocaleString('th-TH')} ฿) ต่างกัน {Math.abs(totalInstallments() - calcSubtotal()).toLocaleString('th-TH')} ฿</span>
+              <span className="block text-xs mt-1">⚠ {bi('ไม่ตรงกับยอดรวม', 'Does not match grand total')} ({calcSubtotal().toLocaleString('th-TH')} ฿) {bi('ต่างกัน', 'diff')} {Math.abs(totalInstallments() - calcSubtotal()).toLocaleString('th-TH')} ฿</span>
             )}
           </div>
         </div>
 
         <div className="bg-white border border-stone-200 rounded-lg p-6">
           <div className="flex justify-between items-center mb-4 pb-2 border-b border-stone-200">
-            <h3 className="font-semibold text-stone-900">หมายเหตุเพิ่มเติม / Notes</h3>
+            <h3 className="font-semibold text-stone-900">{bi('หมายเหตุเพิ่มเติม', 'Notes')}</h3>
             <button onClick={() => setForm({ ...form, extraNotes: [...form.extraNotes, ''] })} className="flex items-center gap-1 px-3 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded text-sm">
-              <Plus size={14} /> เพิ่ม
+              <Plus size={14} /> {bi('เพิ่ม', 'Add')}
             </button>
           </div>
           <div className="space-y-2">
             {form.extraNotes.map((note, idx) => (
               <div key={idx} className="flex items-center gap-2">
-                <input type="text" value={note} onChange={(e) => updateNote(idx, e.target.value)} placeholder="เช่น ราคานี้ครอบคลุมการตรวจ 3 รอบ..." className="flex-1 px-3 py-2 border border-stone-300 rounded" />
+                <input type="text" value={note} onChange={(e) => updateNote(idx, e.target.value)} placeholder={bi('เช่น ราคานี้ครอบคลุมการตรวจ 3 รอบ...', 'e.g. Price covers 3 inspection rounds...')} className="flex-1 px-3 py-2 border border-stone-300 rounded" />
                 <button onClick={() => setForm({ ...form, extraNotes: form.extraNotes.filter((_, i) => i !== idx) })} className="p-2 text-red-600 hover:bg-red-50 rounded">
                   <Trash2 size={16} />
                 </button>
@@ -1592,7 +1593,7 @@ export default function QuotationSystem() {
               />
               <div className="flex items-center gap-2">
                 <QrCode size={18} className="text-slate-700" />
-                <span className="font-medium text-stone-700">แสดง QR Code PromptPay ในใบเสนอราคา</span>
+                <span className="font-medium text-stone-700">{bi('แสดง QR Code PromptPay ในใบเสนอราคา', 'Show PromptPay QR code on the quotation')}</span>
               </div>
             </label>
             {form.showQR !== false && (
@@ -1600,7 +1601,7 @@ export default function QuotationSystem() {
                 <p className="text-stone-700">
                   <strong>{QR_MERCHANT_NAME}</strong>
                   <br />
-                  <span className="text-stone-500 text-xs">รหัสร้านค้า: {QR_MERCHANT_ID}</span>
+                  <span className="text-stone-500 text-xs">{bi('รหัสร้านค้า', 'Merchant ID')}: {QR_MERCHANT_ID}</span>
                 </p>
               </div>
             )}
@@ -1609,10 +1610,10 @@ export default function QuotationSystem() {
 
         <div className="flex flex-col sm:flex-row gap-3 sticky bottom-0 bg-stone-100 py-4 border-t border-stone-200">
           <button onClick={() => setView('list')} className="px-6 py-3 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 rounded-lg font-semibold">
-            ยกเลิก
+            {t('cancel')}
           </button>
           <button onClick={saveQuotation} className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold">
-            <Save size={20} /> บันทึกและดูตัวอย่าง
+            <Save size={20} /> {bi('บันทึกและดูตัวอย่าง', 'Save & Preview')}
           </button>
         </div>
       </div>
