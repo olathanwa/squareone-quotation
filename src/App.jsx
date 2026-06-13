@@ -1756,7 +1756,7 @@ export default function QuotationSystem() {
               <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">{bi('โครงการ', 'Project')}</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">{bi('โครงการ/อาคารที่ตรวจสอบ', 'Project / Building inspected')}</label>
               <input type="text" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
             </div>
             <div>
