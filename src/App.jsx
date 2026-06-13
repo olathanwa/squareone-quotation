@@ -59,6 +59,42 @@ const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'
 const METHOD_LABEL = { 'โอน': 'Transfer', 'เงินสด': 'Cash', 'เช็ค': 'Cheque', 'อื่นๆ': 'Other' };
 const CAT_LABEL = { 'ค่าเดินทาง': 'Travel', 'ค่าจ้างทีม': 'Team wages', 'ค่าอุปกรณ์': 'Equipment', 'ค่าเอกสาร': 'Documents', 'ค่าการตลาด': 'Marketing', 'อื่นๆ': 'Other' };
 
+// ===== CSS โหมดมืด — ทับเฉพาะสีโทนกลางเมื่อมีคลาส .sqdark (คงสีปุ่ม accent ไว้) =====
+const DARK_CSS = `
+html:has(.sqdark), html:has(.sqdark) body { background-color:#14161b; }
+.sqdark { color-scheme: dark; }
+.sqdark .bg-stone-100 { background-color:#14161b !important; }
+.sqdark .bg-white { background-color:#1d2127 !important; }
+.sqdark .bg-stone-50 { background-color:#23272f !important; }
+.sqdark .hover\\:bg-stone-50:hover { background-color:#272c34 !important; }
+.sqdark .bg-stone-200, .sqdark .hover\\:bg-stone-200:hover { background-color:#2b313a !important; }
+.sqdark .bg-stone-100.hover\\:bg-stone-200 { background-color:#272c34 !important; }
+.sqdark .text-stone-900 { color:#ececec !important; }
+.sqdark .text-stone-800 { color:#dcdcdc !important; }
+.sqdark .text-stone-700 { color:#c9c7c3 !important; }
+.sqdark .text-stone-600 { color:#aeaaa4 !important; }
+.sqdark .text-stone-500 { color:#928d86 !important; }
+.sqdark .text-stone-400 { color:#6f6a64 !important; }
+.sqdark .text-stone-300 { color:#52504c !important; }
+.sqdark .border-stone-100 { border-color:#262b33 !important; }
+.sqdark .border-stone-200 { border-color:#2f343d !important; }
+.sqdark .border-stone-300 { border-color:#3a404a !important; }
+.sqdark input, .sqdark select, .sqdark textarea { background-color:#23272f !important; color:#ececec !important; border-color:#3a404a !important; }
+.sqdark input::placeholder, .sqdark textarea::placeholder { color:#6f6a64 !important; }
+.sqdark .bg-amber-50 { background-color:#2a2410 !important; }
+.sqdark .text-amber-900 { color:#f3d894 !important; }
+.sqdark .text-amber-800 { color:#e8c97a !important; }
+.sqdark .border-amber-200 { border-color:#4a3c18 !important; }
+.sqdark .border-amber-300 { border-color:#5c4a1e !important; }
+.sqdark .bg-blue-50 { background-color:#13233a !important; }
+.sqdark .text-blue-900 { color:#bcd4f0 !important; }
+.sqdark .border-blue-200 { border-color:#274060 !important; }
+.sqdark .bg-emerald-50 { background-color:#10241a !important; }
+.sqdark .bg-emerald-100 { background-color:#123524 !important; }
+.sqdark .bg-rose-100 { background-color:#3a1620 !important; }
+.sqdark .hover\\:bg-red-100:hover { background-color:#3a1620 !important; }
+`;
+
 // ===== พจนานุกรมแปลภาษา (ไทย/อังกฤษ) สำหรับหน้าจอใช้งาน =====
 const T = {
   th: {
@@ -162,10 +198,19 @@ export default function QuotationSystem() {
   const t = (k, ...args) => { const v = (T[lang] || T.th)[k]; return typeof v === 'function' ? v(...args) : (v ?? k); };
   const MONTHS = lang === 'en' ? EN_MONTHS : THAI_MONTHS;
   const toggleLang = () => { const next = lang === 'th' ? 'en' : 'th'; setLang(next); try { window.storage.set('app:lang', next); } catch { /* ignore */ } };
-  // ปุ่มสลับภาษา (ใช้ซ้ำได้)
-  const LangToggle = ({ dark = true }) => (
-    <button onClick={toggleLang} className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold border ${dark ? 'bg-slate-800 hover:bg-slate-700 border-amber-500/30 text-amber-200' : 'bg-white hover:bg-stone-50 border-stone-300 text-stone-700'}`} title="เปลี่ยนภาษา / Switch language">
+  // ===== ธีม (สว่าง/มืด) =====
+  const [theme, setTheme] = useState('light');
+  const isDark = theme === 'dark';
+  const toggleTheme = () => { const next = isDark ? 'light' : 'dark'; setTheme(next); try { window.storage.set('app:theme', next); } catch { /* ignore */ } };
+  // ปุ่มสลับภาษา + ธีม (ใช้ซ้ำได้)
+  const LangToggle = () => (
+    <button onClick={toggleLang} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold border bg-slate-800 hover:bg-slate-700 border-amber-500/30 text-amber-200" title="เปลี่ยนภาษา / Switch language">
       🌐 {lang === 'th' ? 'EN' : 'ไทย'}
+    </button>
+  );
+  const ThemeToggle = () => (
+    <button onClick={toggleTheme} className="flex items-center justify-center px-3 py-2 rounded-lg text-sm font-semibold border bg-slate-800 hover:bg-slate-700 border-amber-500/30 text-amber-200" title="สลับโหมดสว่าง/มืด / Toggle theme">
+      {isDark ? '☀️' : '🌙'}
     </button>
   );
 
@@ -229,6 +274,8 @@ export default function QuotationSystem() {
 
       // โหลดภาษาที่เลือกไว้
       try { const lr = await window.storage.get('app:lang'); if (lr && (lr.value === 'th' || lr.value === 'en')) setLang(lr.value); } catch { /* ค่า default = th */ }
+      // โหลดธีมที่เลือกไว้
+      try { const thr = await window.storage.get('app:theme'); if (thr && (thr.value === 'light' || thr.value === 'dark')) setTheme(thr.value); } catch { /* ค่า default = light */ }
 
       // โหลดใบเสนอราคาจากคลาวด์
       let cloudIds = new Set();
@@ -851,14 +898,14 @@ export default function QuotationSystem() {
     const periodLabel = periodMode === 'all' ? t('allLabel') : periodMode === 'year' ? `${t('yearWord')} ${yearDisp(selYear)}` : `${MONTHS[Number(selMonth) - 1]} ${yearDisp(selYear)}`;
 
     return (
-      <div className="min-h-screen bg-stone-100" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap'); * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }`}</style>
+      <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap'); * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }` + DARK_CSS}</style>
         <TxnModal />
         <div className="bg-slate-900 text-stone-50 border-b-4 border-amber-500">
           <div className="max-w-6xl mx-auto px-6 py-6 flex items-center gap-3">
             <button onClick={() => setView('list')} className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm"><ArrowLeft size={18} /> {t('back')}</button>
             <div className="flex items-center gap-2"><Wallet size={24} className="text-amber-400" /><h1 className="text-xl font-bold">{t('financeSummary')}</h1></div>
-            <div className="ml-auto"><LangToggle /></div>
+            <div className="ml-auto flex items-center gap-2"><ThemeToggle /><LangToggle /></div>
           </div>
         </div>
 
@@ -1151,11 +1198,11 @@ export default function QuotationSystem() {
 
   if (view === 'list') {
     return (
-      <div className="min-h-screen bg-stone-100" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+      <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap');
           * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }
-        `}</style>
+        ` + DARK_CSS}</style>
         <RateTableModal />
         <SettingsModal />
         <div className="bg-slate-900 text-stone-50 border-b-4 border-amber-500">
@@ -1171,6 +1218,7 @@ export default function QuotationSystem() {
                 </div>
               </div>
               <div className="hidden md:flex items-center gap-2">
+                <ThemeToggle />
                 <LangToggle />
                 <button onClick={() => setView('finance')} className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-lg text-sm font-semibold">
                   <Wallet size={16} /> {t('financeSummary')}
@@ -1205,6 +1253,7 @@ export default function QuotationSystem() {
               <Settings size={16} /> {t('settings')}
             </button>
             <button onClick={toggleLang} className="md:hidden flex items-center gap-2 px-4 py-3 bg-slate-900 text-amber-200 rounded-lg">🌐 {lang === 'th' ? 'EN' : 'ไทย'}</button>
+            <button onClick={toggleTheme} className="md:hidden flex items-center gap-2 px-4 py-3 bg-slate-900 text-amber-200 rounded-lg">{isDark ? '☀️' : '🌙'}</button>
           </div>
 
           {legacyCount > 0 && (
@@ -1296,11 +1345,11 @@ export default function QuotationSystem() {
   const areaInRange = form.propertyArea && currentRate !== null;
   
   return (
-    <div className="min-h-screen bg-stone-100" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+    <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap');
         * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }
-      `}</style>
+      ` + DARK_CSS}</style>
       <RateTableModal />
       <div className="bg-slate-900 text-stone-50">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
