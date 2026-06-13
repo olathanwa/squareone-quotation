@@ -1306,15 +1306,15 @@ export default function QuotationSystem() {
         <RateTableModal />
         <SettingsModal />
         <div className="bg-slate-900 text-stone-50 border-b-4 border-amber-500">
-          <div className="max-w-6xl mx-auto px-6 py-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-white rounded flex items-center justify-center p-2" style={{ width: '60px', height: '78px' }}>
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 md:py-8">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="bg-white rounded flex items-center justify-center p-2 flex-shrink-0" style={{ width: '52px', height: '66px' }}>
                   <img src={COMPANY_LOGO} alt="Square One" className="w-full h-auto block" />
                 </div>
-                <div>
-                  <h1 className="text-2xl font-bold tracking-tight">SQUARE ONE — Quotation System</h1>
-                  <p className="text-stone-400 text-sm">{t('appSub')}</p>
+                <div className="min-w-0">
+                  <h1 className="text-lg md:text-2xl font-bold tracking-tight truncate">SQUARE ONE — Quotation System</h1>
+                  <p className="text-stone-400 text-xs md:text-sm truncate">{t('appSub')}</p>
                 </div>
               </div>
               <div className="hidden md:flex items-center gap-2">
@@ -1331,10 +1331,18 @@ export default function QuotationSystem() {
                 </button>
               </div>
             </div>
+
+            {/* แถบปุ่มยูทิลิตี้สำหรับมือถือ (โทน/ภาษา/ตั้งค่า/อัตรา) — บรรทัดเดียว */}
+            <div className="md:hidden flex items-center gap-2 mt-3">
+              <button onClick={toggleTheme} className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-slate-800 border border-amber-500/30 text-amber-200 rounded-lg text-sm whitespace-nowrap">{isDark ? '☀️' : '🌙'}</button>
+              <button onClick={toggleLang} className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-slate-800 border border-amber-500/30 text-amber-200 rounded-lg text-sm whitespace-nowrap">🌐 {lang === 'th' ? 'EN' : 'ไทย'}</button>
+              <button onClick={() => { setSettingsForm(settings); setShowSettings(true); }} className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-slate-800 border border-amber-500/30 text-amber-200 rounded-lg text-xs whitespace-nowrap"><Settings size={14} /> {t('settings')}</button>
+              <button onClick={() => setShowRateTable(true)} className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-slate-800 border border-amber-500/30 text-amber-200 rounded-lg text-xs whitespace-nowrap"><Info size={14} /> {t('rates')}</button>
+            </div>
           </div>
         </div>
 
-        <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 md:py-8">
           <div className="flex flex-col sm:flex-row gap-3 mb-6">
             <button onClick={startNewQuotation} className="flex items-center gap-2 px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold shadow-md">
               <Plus size={20} /> {t('newQuote')}
@@ -1346,14 +1354,6 @@ export default function QuotationSystem() {
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
               <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder={t('searchPh')} className="w-full pl-10 pr-4 py-3 border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-700" />
             </div>
-            <button onClick={() => setShowRateTable(true)} className="md:hidden flex items-center gap-2 px-4 py-3 bg-slate-900 text-amber-200 rounded-lg">
-              <Info size={16} /> {t('rates')}
-            </button>
-            <button onClick={() => { setSettingsForm(settings); setShowSettings(true); }} className="md:hidden flex items-center gap-2 px-4 py-3 bg-slate-900 text-amber-200 rounded-lg">
-              <Settings size={16} /> {t('settings')}
-            </button>
-            <button onClick={toggleLang} className="md:hidden flex items-center gap-2 px-4 py-3 bg-slate-900 text-amber-200 rounded-lg">🌐 {lang === 'th' ? 'EN' : 'ไทย'}</button>
-            <button onClick={toggleTheme} className="md:hidden flex items-center gap-2 px-4 py-3 bg-slate-900 text-amber-200 rounded-lg">{isDark ? '☀️' : '🌙'}</button>
           </div>
 
           {legacyCount > 0 && (
