@@ -1192,7 +1192,7 @@ export default function QuotationSystem() {
             </tbody>
           </table>
 
-          <table className="w-full border-collapse border border-stone-800 text-sm">
+          <table className="w-full border-collapse border border-stone-800 text-sm mt-5">
             <thead>
               <tr className="bg-stone-100">
                 <th className="border border-stone-800 px-3 py-2 w-16">ลำดับ<br/><span className="font-normal text-xs">No.</span></th>
