@@ -245,7 +245,7 @@ table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}th,td{bo
 .sign{margin-top:48px;display:flex;justify-content:space-between;color:#667}
 </style></head>
 <body><button class="btn" onclick="window.print()">${L.print}</button>
-<div class="head"><h1>${esc(company.name || 'SquareOne')}</h1><div class="muted">${esc(company.address || '')}</div><div class="muted">${company.phone ? 'โทร: ' + esc(company.phone) : ''}${company.taxId ? '　เลขภาษี ' + esc(company.taxId) : ''}</div></div>
+<div class="head"><img src="${COMPANY_LOGO}" alt="logo" style="height:58px;width:auto;display:block;margin:0 auto 6px"/><h1>${esc(company.name || 'SquareOne')}</h1><div class="muted">${esc(company.address || '')}</div><div class="muted">${company.phone ? 'โทร: ' + esc(company.phone) : ''}${company.taxId ? '　เลขภาษี ' + esc(company.taxId) : ''}</div></div>
 <h2>${L.subtitle}</h2>
 <table class="info"><tbody>
 <tr><td style="background:#f1efe9;font-weight:600;width:130px">${L.receiptNo}</td><td>${esc(receiptNo)}</td><td style="background:#f1efe9;font-weight:600;width:110px">${L.date}</td><td>${esc(dateStr)}</td></tr>
