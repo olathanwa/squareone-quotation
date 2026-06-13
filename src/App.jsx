@@ -284,6 +284,10 @@ export default function QuotationSystem() {
   const [txnFilter, setTxnFilter] = useState('all'); // all | in | out
   const [txnSort, setTxnSort] = useState('dateDesc'); // dateDesc | dateAsc | amountDesc
   const [paymentQ, setPaymentQ] = useState(null); // โครงการที่กำลังจัดการรับเงินรายงวด
+  // ===== ล็อกด้วยรหัสผ่าน =====
+  const [unlocked, setUnlocked] = useState(() => { try { return sessionStorage.getItem('sq_unlocked') === '1'; } catch { return false; } });
+  const [pwInput, setPwInput] = useState('');
+  const [pwError, setPwError] = useState(false);
   // ===== ภาษา (ไทย/อังกฤษ) =====
   const [lang, setLang] = useState('th');
   const t = (k, ...args) => { const v = (T[lang] || T.th)[k]; return typeof v === 'function' ? v(...args) : (v ?? k); };
@@ -315,6 +319,7 @@ export default function QuotationSystem() {
     bankName: 'ธนาคารกสิกรไทย',
     accountName: 'บริษัท สแควร์วัน ดีไซน์ แอนด์ อินสเปคเตอร์ จำกัด',
     accountNumber: '219-3-18667-2',
+    appPassword: '', // รหัสผ่านเข้าระบบ (ว่าง = ไม่ล็อก)
   };
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [settingsForm, setSettingsForm] = useState(DEFAULT_SETTINGS);
@@ -486,6 +491,9 @@ export default function QuotationSystem() {
     try {
       await window.storage.set('app:settings', JSON.stringify(settingsForm));
       setSettings(settingsForm);
+      // คนที่เพิ่งตั้ง/แก้รหัสถือว่าผ่านด่านแล้ว ไม่ล็อกตัวเองออก
+      setUnlocked(true);
+      try { sessionStorage.setItem('sq_unlocked', '1'); } catch { /* ignore */ }
       setShowSettings(false);
       alert('บันทึกการตั้งค่าเรียบร้อย / Settings saved');
     } catch (e) {
@@ -933,6 +941,19 @@ export default function QuotationSystem() {
             </div>
           </div>
 
+          {/* ความปลอดภัย — รหัสผ่านเข้าระบบ */}
+          <div className="border border-stone-300 rounded-lg p-4">
+            <h4 className="font-semibold text-stone-900 mb-3 flex items-center gap-2">🔒 {bi('รหัสผ่านเข้าระบบ', 'App Password')}</h4>
+            <input
+              type="text"
+              value={settingsForm.appPassword || ''}
+              onChange={(e) => setSettingsForm({ ...settingsForm, appPassword: e.target.value })}
+              placeholder={bi('เว้นว่าง = ไม่ล็อก (ใครมีลิงก์ก็เข้าได้)', 'Leave empty = no lock')}
+              className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700"
+            />
+            <p className="text-xs text-stone-500 mt-2">{bi('ตั้งรหัสแล้ว ทุกคนต้องใส่รหัสก่อนเข้าระบบ (จำไว้จนปิดเบราว์เซอร์)', 'When set, everyone must enter it to open the app (remembered until browser closes)')}</p>
+          </div>
+
           {/* คำเตือน */}
           <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-900">
             <p className="font-semibold mb-1">ℹ️ {bi('ข้อมูลเหล่านี้จะถูกใช้กับใบเสนอราคาใหม่ที่สร้างต่อจากนี้', 'These details apply to quotations created from now on')}</p>
@@ -1056,6 +1077,32 @@ export default function QuotationSystem() {
       </div>
     );
   };
+
+  // ===== ด่านรหัสผ่าน — แสดงก่อนเข้าแอปเมื่อมีการตั้งรหัสไว้ =====
+  const tryUnlock = () => {
+    if (pwInput === (settings.appPassword || '')) { setUnlocked(true); setPwError(false); try { sessionStorage.setItem('sq_unlocked', '1'); } catch { /* ignore */ } }
+    else setPwError(true);
+  };
+  if (settings.appPassword && !unlocked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap'); * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }`}</style>
+        <div className="bg-white rounded-2xl p-8 w-full max-w-sm text-center shadow-2xl">
+          <img src={COMPANY_LOGO} alt="logo" style={{ height: '60px' }} className="mx-auto mb-3 w-auto" />
+          <h1 className="text-lg font-bold text-stone-900">{settings.companyName || 'SquareOne'}</h1>
+          <p className="text-stone-500 text-sm mb-5">{bi('กรุณาใส่รหัสผ่านเพื่อเข้าระบบ', 'Enter password to continue')}</p>
+          <input type="password" value={pwInput} autoFocus
+            onChange={(e) => { setPwInput(e.target.value); setPwError(false); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') tryUnlock(); }}
+            placeholder={bi('รหัสผ่าน', 'Password')}
+            className={`w-full px-3 py-2.5 border rounded-lg text-center text-lg ${pwError ? 'border-red-400' : 'border-stone-300'} focus:outline-none focus:border-emerald-700`} />
+          {pwError && <p className="text-red-600 text-sm mt-2">{bi('รหัสผ่านไม่ถูกต้อง', 'Incorrect password')}</p>}
+          <button onClick={tryUnlock} className="w-full mt-4 px-4 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold">{bi('เข้าระบบ', 'Enter')}</button>
+          <button onClick={toggleLang} className="mt-4 text-stone-400 text-sm hover:text-stone-600">🌐 {lang === 'th' ? 'English' : 'ไทย'}</button>
+        </div>
+      </div>
+    );
+  }
 
   if (view === 'finance') {
     const inPeriod = (t) => {
