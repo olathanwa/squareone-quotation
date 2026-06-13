@@ -1158,13 +1158,16 @@ export default function QuotationSystem() {
         </div>
 
         <div className="print-page quotation-doc max-w-4xl mx-auto bg-white my-8 shadow-lg p-12 border border-stone-300">
-          <div className="flex flex-col items-center text-center pb-4 border-b-2 border-stone-800">
-            <div style={{ width: '90px' }} className="mb-2">
+          <div className="flex items-center gap-3 pb-4 border-b-2 border-stone-800">
+            <div className="flex-shrink-0" style={{ width: '72px' }}>
               <img src={COMPANY_LOGO} alt="Square One Inspector" className="w-full h-auto block" />
             </div>
-            <h1 className="text-xl font-bold text-stone-900">{form.companyName || settings.companyName}</h1>
-            <p className="text-sm text-stone-700 mt-1">{form.companyAddress || settings.companyAddress}</p>
-            <p className="text-sm text-stone-700">โทร: {form.companyPhone || settings.companyPhone} เลขประจำตัวผู้เสียภาษีอากร {form.companyTaxId || settings.companyTaxId}</p>
+            <div className="flex-1 text-center">
+              <h1 className="text-xl font-bold text-stone-900">{form.companyName || settings.companyName}</h1>
+              <p className="text-sm text-stone-700 mt-1">{form.companyAddress || settings.companyAddress}</p>
+              <p className="text-sm text-stone-700">โทร: {form.companyPhone || settings.companyPhone} เลขประจำตัวผู้เสียภาษีอากร {form.companyTaxId || settings.companyTaxId}</p>
+            </div>
+            <div className="flex-shrink-0" style={{ width: '72px' }} aria-hidden="true"></div>
           </div>
 
           <h2 className="text-2xl font-bold text-center my-4 text-stone-900">ใบเสนอราคา / Quotation</h2>
