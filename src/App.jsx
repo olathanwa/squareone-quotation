@@ -1165,7 +1165,8 @@ export default function QuotationSystem() {
             <div className="flex-1 text-center">
               <h1 className="text-xl font-bold text-stone-900">{form.companyName || settings.companyName}</h1>
               <p className="text-sm text-stone-700 mt-1">{form.companyAddress || settings.companyAddress}</p>
-              <p className="text-sm text-stone-700">โทร: {form.companyPhone || settings.companyPhone} เลขประจำตัวผู้เสียภาษีอากร {form.companyTaxId || settings.companyTaxId}</p>
+              <p className="text-sm text-stone-700">โทร: {form.companyPhone || settings.companyPhone}</p>
+              <p className="text-sm text-stone-700">เลขประจำตัวผู้เสียภาษีอากร {form.companyTaxId || settings.companyTaxId}</p>
             </div>
             <div className="flex-shrink-0" style={{ width: '72px' }} aria-hidden="true"></div>
           </div>
