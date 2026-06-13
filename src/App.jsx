@@ -598,7 +598,15 @@ export default function QuotationSystem() {
     setView('preview');
   };
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    // ชื่อไฟล์ PDF จะใช้ตาม document.title — ตั้งเป็น "ใบเสนอราคา_ชื่อโครงการ_ชื่อเจ้าของ"
+    const prevTitle = document.title;
+    const clean = (s) => String(s || '').trim().replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ');
+    const fileName = ['ใบเสนอราคา', clean(form.project), clean(form.customerName)].filter(Boolean).join('_');
+    document.title = fileName;
+    window.print();
+    setTimeout(() => { document.title = prevTitle; }, 1500);
+  };
 
   const numberToThaiWords = (num) => {
     const ones = ['', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
