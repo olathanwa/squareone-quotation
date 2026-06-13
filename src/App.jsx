@@ -1158,20 +1158,18 @@ export default function QuotationSystem() {
         </div>
 
         <div className="print-page quotation-doc max-w-4xl mx-auto bg-white my-8 shadow-lg p-12 border border-stone-300">
-          <div className="flex items-start gap-4 pb-4 border-b-2 border-stone-800">
-            <div className="flex-shrink-0" style={{ width: '90px' }}>
+          <div className="flex flex-col items-center text-center pb-4 border-b-2 border-stone-800">
+            <div style={{ width: '90px' }} className="mb-2">
               <img src={COMPANY_LOGO} alt="Square One Inspector" className="w-full h-auto block" />
             </div>
-            <div className="flex-1">
-              <h1 className="text-xl font-bold text-stone-900">{form.companyName || settings.companyName}</h1>
-              <p className="text-sm text-stone-700 mt-1">{form.companyAddress || settings.companyAddress}</p>
-              <p className="text-sm text-stone-700">โทร: {form.companyPhone || settings.companyPhone} เลขประจำตัวผู้เสียภาษีอากร {form.companyTaxId || settings.companyTaxId}</p>
-            </div>
+            <h1 className="text-xl font-bold text-stone-900">{form.companyName || settings.companyName}</h1>
+            <p className="text-sm text-stone-700 mt-1">{form.companyAddress || settings.companyAddress}</p>
+            <p className="text-sm text-stone-700">โทร: {form.companyPhone || settings.companyPhone} เลขประจำตัวผู้เสียภาษีอากร {form.companyTaxId || settings.companyTaxId}</p>
           </div>
 
           <h2 className="text-2xl font-bold text-center my-4 text-stone-900">ใบเสนอราคา / Quotation</h2>
 
-          <table className="w-full border border-stone-800 text-sm">
+          <table className="w-full border-collapse border border-stone-800 text-sm">
             <tbody>
               <tr>
                 <td className="border border-stone-800 px-3 py-2 bg-stone-50 font-semibold w-32">โครงการ<br/><span className="font-normal text-xs">Project</span></td>
@@ -1194,7 +1192,7 @@ export default function QuotationSystem() {
             </tbody>
           </table>
 
-          <table className="w-full border border-stone-800 border-t-0 text-sm">
+          <table className="w-full border-collapse border border-stone-800 text-sm">
             <thead>
               <tr className="bg-stone-100">
                 <th className="border border-stone-800 px-3 py-2 w-16">ลำดับ<br/><span className="font-normal text-xs">No.</span></th>
