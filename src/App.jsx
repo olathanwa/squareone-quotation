@@ -54,6 +54,68 @@ const calculateRate = (type, area) => {
 const PAY_METHODS = ['โอน', 'เงินสด', 'เช็ค', 'อื่นๆ'];
 const EXPENSE_CATEGORIES = ['ค่าเดินทาง', 'ค่าจ้างทีม', 'ค่าอุปกรณ์', 'ค่าเอกสาร', 'ค่าการตลาด', 'อื่นๆ'];
 const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// ป้ายแสดงผลของช่องทาง/หมวด (เก็บค่าจริงเป็นไทยเสมอ แค่แสดงผลตามภาษา)
+const METHOD_LABEL = { 'โอน': 'Transfer', 'เงินสด': 'Cash', 'เช็ค': 'Cheque', 'อื่นๆ': 'Other' };
+const CAT_LABEL = { 'ค่าเดินทาง': 'Travel', 'ค่าจ้างทีม': 'Team wages', 'ค่าอุปกรณ์': 'Equipment', 'ค่าเอกสาร': 'Documents', 'ค่าการตลาด': 'Marketing', 'อื่นๆ': 'Other' };
+
+// ===== พจนานุกรมแปลภาษา (ไทย/อังกฤษ) สำหรับหน้าจอใช้งาน =====
+const T = {
+  th: {
+    appSub: 'INSPECTOR AND DESIGNER · ระบบใบเสนอราคา',
+    newQuote: 'สร้างใบเสนอราคาใหม่', financeSummary: 'สรุปยอดการเงิน', settings: 'ตั้งค่า',
+    rateTable: 'ตารางอัตราค่าบริการ', rates: 'อัตราค่าบริการ',
+    searchPh: 'ค้นหา ชื่อลูกค้า / เลขที่ใบเสนอราคา...',
+    statAll: 'ใบเสนอราคาทั้งหมด', statValue: 'มูลค่ารวม', statMonth: 'เดือนนี้',
+    loading: 'กำลังโหลด...', emptySearch: 'ไม่พบใบเสนอราคาที่ค้นหา', emptyNone: 'ยังไม่มีใบเสนอราคา เริ่มสร้างใบแรกได้เลย',
+    createQuote: 'สร้างใบเสนอราคา',
+    cNo: 'เลขที่', cCustomer: 'ลูกค้า', cAddress: 'ที่อยู่', cDate: 'วันที่', cTotal: 'รวม', cManage: 'จัดการ',
+    tipView: 'ดู', tipCopy: 'คัดลอก', tipEdit: 'แก้ไข', tipDelete: 'ลบ',
+    migTitle: (n) => `พบใบเสนอราคาเดิมในเครื่องนี้ ${n} ใบ ที่ยังไม่ได้อยู่บนคลาวด์`,
+    migDesc: 'กดย้ายขึ้นคลาวด์ครั้งเดียว เพื่อให้เปิดจากเครื่องไหนก็เห็นข้อมูลชุดเดียวกัน (ข้อมูลเดิมไม่หาย)',
+    migBtn: 'ย้ายข้อมูลขึ้นคลาวด์', migging: 'กำลังย้าย…',
+    back: 'กลับ', pMonth: 'รายเดือน', pYear: 'รายปี', pAll: 'ทั้งหมด', allLabel: 'ทั้งหมด',
+    addIncome: 'บันทึกรายรับ', addExpense: 'บันทึกรายจ่าย',
+    income: 'รายรับ', expense: 'รายจ่าย', net: 'คงเหลือสุทธิ', outstanding: 'ค้างรับจากลูกค้า',
+    monthlyTitle: 'สรุปแยกรายเดือน · ปี', tMonth: 'เดือน', tIncome: 'รายรับ', tExpense: 'รายจ่าย', tBalance: 'คงเหลือ',
+    projAmounts: 'ยอดแต่ละโครงการ (รับแล้ว / ค้างรับ)', quoted: 'เสนอราคา', received: 'รับแล้ว',
+    owe: 'ค้าง', complete: 'ครบแล้ว ✓', noName: 'ไม่ระบุชื่อ',
+    txnList: 'รายการเงิน', emptyTxn: 'ยังไม่มีรายการเงินในช่วงนี้ — กดปุ่ม "บันทึกรายรับ/รายจ่าย" ด้านบน',
+    editEntry: 'แก้ไขรายการ', txnDate: 'วันที่', txnAmount: 'จำนวนเงิน (บาท)',
+    fromProject: 'รับจากโครงการ / ลูกค้า (ถ้ามี)', noProject: '— ไม่ผูกโครงการ —',
+    detailInst: 'รายละเอียด / งวด', instPh: 'เช่น มัดจำ, งวดที่ 2', expenseCat: 'หมวดรายจ่าย',
+    channel: 'ช่องทาง', note: 'โน้ต', notePh: 'รายละเอียดเพิ่มเติม',
+    attachSlip: 'แนบสลิป / หลักฐาน (ถ้ามี)', chooseSlip: 'เลือกรูปสลิป', compressing: 'กำลังย่อรูป…',
+    cancel: 'ยกเลิก', save: 'บันทึก', yearWord: 'ปี',
+  },
+  en: {
+    appSub: 'INSPECTOR AND DESIGNER · Quotation System',
+    newQuote: 'New Quotation', financeSummary: 'Finance Summary', settings: 'Settings',
+    rateTable: 'Service Rate Table', rates: 'Rates',
+    searchPh: 'Search customer / quotation no...',
+    statAll: 'Total Quotations', statValue: 'Total Value', statMonth: 'This Month',
+    loading: 'Loading...', emptySearch: 'No matching quotations', emptyNone: 'No quotations yet. Create your first one!',
+    createQuote: 'Create Quotation',
+    cNo: 'No.', cCustomer: 'Customer', cAddress: 'Address', cDate: 'Date', cTotal: 'Total', cManage: 'Actions',
+    tipView: 'View', tipCopy: 'Duplicate', tipEdit: 'Edit', tipDelete: 'Delete',
+    migTitle: (n) => `Found ${n} quotation(s) on this device not yet on the cloud`,
+    migDesc: 'Move them to the cloud once so every device shows the same data (existing data stays safe).',
+    migBtn: 'Move to Cloud', migging: 'Moving…',
+    back: 'Back', pMonth: 'Monthly', pYear: 'Yearly', pAll: 'All', allLabel: 'All',
+    addIncome: 'Add Income', addExpense: 'Add Expense',
+    income: 'Income', expense: 'Expense', net: 'Net Balance', outstanding: 'Outstanding (clients)',
+    monthlyTitle: 'Monthly Breakdown · Year', tMonth: 'Month', tIncome: 'Income', tExpense: 'Expense', tBalance: 'Balance',
+    projAmounts: 'By Project (Received / Outstanding)', quoted: 'Quoted', received: 'Received',
+    owe: 'Owed', complete: 'Paid ✓', noName: 'No name',
+    txnList: 'Transactions', emptyTxn: 'No transactions in this period — tap "Add Income/Expense" above',
+    editEntry: 'Edit Entry', txnDate: 'Date', txnAmount: 'Amount (THB)',
+    fromProject: 'From project / client (optional)', noProject: '— No project —',
+    detailInst: 'Detail / Installment', instPh: 'e.g. Deposit, 2nd installment', expenseCat: 'Expense Category',
+    channel: 'Channel', note: 'Note', notePh: 'Additional details',
+    attachSlip: 'Attach slip / proof (optional)', chooseSlip: 'Choose slip image', compressing: 'Compressing…',
+    cancel: 'Cancel', save: 'Save', yearWord: 'Year',
+  },
+};
 const baht = (n) => (Number(n) || 0).toLocaleString('th-TH');
 const ymOf = (iso) => (iso || '').slice(0, 7);   // 'YYYY-MM'
 const yOf = (iso) => (iso || '').slice(0, 4);     // 'YYYY'
@@ -95,6 +157,17 @@ export default function QuotationSystem() {
   const nowD = new Date();
   const [selYear, setSelYear] = useState(String(nowD.getFullYear()));
   const [selMonth, setSelMonth] = useState(String(nowD.getMonth() + 1).padStart(2, '0'));
+  // ===== ภาษา (ไทย/อังกฤษ) =====
+  const [lang, setLang] = useState('th');
+  const t = (k, ...args) => { const v = (T[lang] || T.th)[k]; return typeof v === 'function' ? v(...args) : (v ?? k); };
+  const MONTHS = lang === 'en' ? EN_MONTHS : THAI_MONTHS;
+  const toggleLang = () => { const next = lang === 'th' ? 'en' : 'th'; setLang(next); try { window.storage.set('app:lang', next); } catch { /* ignore */ } };
+  // ปุ่มสลับภาษา (ใช้ซ้ำได้)
+  const LangToggle = ({ dark = true }) => (
+    <button onClick={toggleLang} className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold border ${dark ? 'bg-slate-800 hover:bg-slate-700 border-amber-500/30 text-amber-200' : 'bg-white hover:bg-stone-50 border-stone-300 text-stone-700'}`} title="เปลี่ยนภาษา / Switch language">
+      🌐 {lang === 'th' ? 'EN' : 'ไทย'}
+    </button>
+  );
 
   // ===== ตั้งค่าระบบ (บันทึกใน storage) =====
   const DEFAULT_SETTINGS = {
@@ -153,6 +226,9 @@ export default function QuotationSystem() {
           setSettingsForm(merged);
         }
       } catch (e) { /* ใช้ค่า default */ }
+
+      // โหลดภาษาที่เลือกไว้
+      try { const lr = await window.storage.get('app:lang'); if (lr && (lr.value === 'th' || lr.value === 'en')) setLang(lr.value); } catch { /* ค่า default = th */ }
 
       // โหลดใบเสนอราคาจากคลาวด์
       let cloudIds = new Set();
@@ -670,30 +746,30 @@ export default function QuotationSystem() {
       <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={(e) => { if (e.target === e.currentTarget) setTxnForm(null); }}>
         <div className="bg-white w-full sm:max-w-lg sm:rounded-xl rounded-t-2xl max-h-[92vh] overflow-y-auto">
           <div className={`sticky top-0 px-5 py-4 flex items-center justify-between text-white ${isIn ? 'bg-emerald-700' : 'bg-rose-700'}`}>
-            <h3 className="font-bold text-lg flex items-center gap-2">{isIn ? <TrendingUp size={20} /> : <TrendingDown size={20} />}{f.id && transactions.some((t) => t.id === f.id) ? 'แก้ไขรายการ' : (isIn ? 'บันทึกรายรับ' : 'บันทึกรายจ่าย')}</h3>
+            <h3 className="font-bold text-lg flex items-center gap-2">{isIn ? <TrendingUp size={20} /> : <TrendingDown size={20} />}{f.id && transactions.some((tt) => tt.id === f.id) ? t('editEntry') : (isIn ? t('addIncome') : t('addExpense'))}</h3>
             <button onClick={() => setTxnForm(null)} className="opacity-80 hover:opacity-100"><X size={22} /></button>
           </div>
           <div className="p-5 space-y-4">
             <div className="flex gap-2">
-              <button onClick={() => set('type', 'in')} className={`flex-1 py-2 rounded-lg font-semibold border ${isIn ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-white text-stone-600 border-stone-300'}`}>รายรับ</button>
-              <button onClick={() => set('type', 'out')} className={`flex-1 py-2 rounded-lg font-semibold border ${!isIn ? 'bg-rose-700 text-white border-rose-700' : 'bg-white text-stone-600 border-stone-300'}`}>รายจ่าย</button>
+              <button onClick={() => set('type', 'in')} className={`flex-1 py-2 rounded-lg font-semibold border ${isIn ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-white text-stone-600 border-stone-300'}`}>{t('income')}</button>
+              <button onClick={() => set('type', 'out')} className={`flex-1 py-2 rounded-lg font-semibold border ${!isIn ? 'bg-rose-700 text-white border-rose-700' : 'bg-white text-stone-600 border-stone-300'}`}>{t('expense')}</button>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm text-stone-600 mb-1">วันที่</label>
+                <label className="block text-sm text-stone-600 mb-1">{t('txnDate')}</label>
                 <input type="date" value={f.date} onChange={(e) => set('date', e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
               </div>
               <div>
-                <label className="block text-sm text-stone-600 mb-1">จำนวนเงิน (บาท)</label>
+                <label className="block text-sm text-stone-600 mb-1">{t('txnAmount')}</label>
                 <input type="number" value={f.amount} onChange={(e) => set('amount', e.target.value)} placeholder="0" className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
               </div>
             </div>
             {isIn && (
               <div>
-                <label className="block text-sm text-stone-600 mb-1">รับจากโครงการ / ลูกค้า (ถ้ามี)</label>
+                <label className="block text-sm text-stone-600 mb-1">{t('fromProject')}</label>
                 <select value={f.quotationId} onChange={(e) => { const q = quotations.find((x) => x.id === e.target.value); set('quotationId', e.target.value); setTxnForm((p) => ({ ...p, quotationId: e.target.value, quotationLabel: q ? `${q.customerName || ''}${q.project ? ' · ' + q.project : ''}` : '' })); }} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700">
-                  <option value="">— ไม่ผูกโครงการ —</option>
-                  {quotations.map((q) => <option key={q.id} value={q.id}>{q.quotationNo ? q.quotationNo + ' · ' : ''}{q.customerName || 'ไม่ระบุชื่อ'}{q.project ? ' (' + q.project + ')' : ''}</option>)}
+                  <option value="">{t('noProject')}</option>
+                  {quotations.map((q) => <option key={q.id} value={q.id}>{q.quotationNo ? q.quotationNo + ' · ' : ''}{q.customerName || t('noName')}{q.project ? ' (' + q.project + ')' : ''}</option>)}
                 </select>
                 {linkedQ && linkedQ.installments && linkedQ.installments.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -705,27 +781,27 @@ export default function QuotationSystem() {
               </div>
             )}
             <div>
-              <label className="block text-sm text-stone-600 mb-1">{isIn ? 'รายละเอียด / งวด' : 'หมวดรายจ่าย'}</label>
+              <label className="block text-sm text-stone-600 mb-1">{isIn ? t('detailInst') : t('expenseCat')}</label>
               {isIn ? (
-                <input type="text" value={f.installment} onChange={(e) => set('installment', e.target.value)} placeholder="เช่น มัดจำ, งวดที่ 2" className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                <input type="text" value={f.installment} onChange={(e) => set('installment', e.target.value)} placeholder={t('instPh')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
               ) : (
                 <select value={f.category} onChange={(e) => set('category', e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700">
-                  {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{lang === 'en' ? (CAT_LABEL[c] || c) : c}</option>)}
                 </select>
               )}
             </div>
             <div>
-              <label className="block text-sm text-stone-600 mb-1">ช่องทาง</label>
+              <label className="block text-sm text-stone-600 mb-1">{t('channel')}</label>
               <div className="flex flex-wrap gap-2">
-                {PAY_METHODS.map((m) => <button key={m} type="button" onClick={() => set('method', m)} className={`px-4 py-2 rounded-lg border text-sm ${f.method === m ? 'bg-slate-900 text-amber-200 border-slate-900' : 'bg-white text-stone-600 border-stone-300'}`}>{m}</button>)}
+                {PAY_METHODS.map((m) => <button key={m} type="button" onClick={() => set('method', m)} className={`px-4 py-2 rounded-lg border text-sm ${f.method === m ? 'bg-slate-900 text-amber-200 border-slate-900' : 'bg-white text-stone-600 border-stone-300'}`}>{lang === 'en' ? (METHOD_LABEL[m] || m) : m}</button>)}
               </div>
             </div>
             <div>
-              <label className="block text-sm text-stone-600 mb-1">โน้ต</label>
-              <input type="text" value={f.note} onChange={(e) => set('note', e.target.value)} placeholder="รายละเอียดเพิ่มเติม" className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+              <label className="block text-sm text-stone-600 mb-1">{t('note')}</label>
+              <input type="text" value={f.note} onChange={(e) => set('note', e.target.value)} placeholder={t('notePh')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
             </div>
             <div>
-              <label className="block text-sm text-stone-600 mb-1">แนบสลิป / หลักฐาน (ถ้ามี)</label>
+              <label className="block text-sm text-stone-600 mb-1">{t('attachSlip')}</label>
               {f.slip ? (
                 <div className="relative inline-block">
                   <img src={f.slip} alt="slip" className="max-h-48 rounded-lg border border-stone-300" />
@@ -733,18 +809,18 @@ export default function QuotationSystem() {
                 </div>
               ) : (
                 <label className="flex items-center justify-center gap-2 px-4 py-6 border-2 border-dashed border-stone-300 rounded-lg text-stone-500 cursor-pointer hover:bg-stone-50">
-                  <Paperclip size={18} /> {txnBusy ? 'กำลังย่อรูป…' : 'เลือกรูปสลิป'}
+                  <Paperclip size={18} /> {txnBusy ? t('compressing') : t('chooseSlip')}
                   <input type="file" accept="image/*" className="hidden" onChange={pickSlip} />
                 </label>
               )}
             </div>
           </div>
           <div className="sticky bottom-0 bg-white border-t border-stone-200 p-4 flex gap-3">
-            {transactions.some((t) => t.id === f.id) && (
+            {transactions.some((tt) => tt.id === f.id) && (
               <button onClick={() => deleteTxn(f.id)} className="px-4 py-3 bg-white border border-rose-300 text-rose-600 rounded-lg"><Trash2 size={18} /></button>
             )}
-            <button onClick={() => setTxnForm(null)} className="flex-1 px-4 py-3 bg-white border border-stone-300 text-stone-700 rounded-lg font-semibold">ยกเลิก</button>
-            <button onClick={saveTxn} disabled={txnBusy || !(Number(f.amount) > 0)} className="flex-1 px-4 py-3 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white rounded-lg font-semibold flex items-center justify-center gap-2"><Save size={18} /> บันทึก</button>
+            <button onClick={() => setTxnForm(null)} className="flex-1 px-4 py-3 bg-white border border-stone-300 text-stone-700 rounded-lg font-semibold">{t('cancel')}</button>
+            <button onClick={saveTxn} disabled={txnBusy || !(Number(f.amount) > 0)} className="flex-1 px-4 py-3 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white rounded-lg font-semibold flex items-center justify-center gap-2"><Save size={18} /> {t('save')}</button>
           </div>
         </div>
       </div>
@@ -771,7 +847,8 @@ export default function QuotationSystem() {
       const mt = transactions.filter((t) => ymOf(t.date) === ym);
       return { m: i, in: mt.filter((t) => t.type === 'in').reduce((s, t) => s + (+t.amount || 0), 0), out: mt.filter((t) => t.type === 'out').reduce((s, t) => s + (+t.amount || 0), 0) };
     }) : null;
-    const periodLabel = periodMode === 'all' ? 'ทั้งหมด' : periodMode === 'year' ? `ปี ${Number(selYear) + 543}` : `${THAI_MONTHS[Number(selMonth) - 1]} ${Number(selYear) + 543}`;
+    const yearDisp = (y) => lang === 'en' ? y : (Number(y) + 543);
+    const periodLabel = periodMode === 'all' ? t('allLabel') : periodMode === 'year' ? `${t('yearWord')} ${yearDisp(selYear)}` : `${MONTHS[Number(selMonth) - 1]} ${yearDisp(selYear)}`;
 
     return (
       <div className="min-h-screen bg-stone-100" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
@@ -779,8 +856,9 @@ export default function QuotationSystem() {
         <TxnModal />
         <div className="bg-slate-900 text-stone-50 border-b-4 border-amber-500">
           <div className="max-w-6xl mx-auto px-6 py-6 flex items-center gap-3">
-            <button onClick={() => setView('list')} className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm"><ArrowLeft size={18} /> กลับ</button>
-            <div className="flex items-center gap-2"><Wallet size={24} className="text-amber-400" /><h1 className="text-xl font-bold">สรุปยอดการเงิน</h1></div>
+            <button onClick={() => setView('list')} className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm"><ArrowLeft size={18} /> {t('back')}</button>
+            <div className="flex items-center gap-2"><Wallet size={24} className="text-amber-400" /><h1 className="text-xl font-bold">{t('financeSummary')}</h1></div>
+            <div className="ml-auto"><LangToggle /></div>
           </div>
         </div>
 
@@ -788,18 +866,18 @@ export default function QuotationSystem() {
           {/* ตัวเลือกช่วงเวลา */}
           <div className="flex flex-wrap items-center gap-2 mb-5">
             <div className="flex rounded-lg overflow-hidden border border-stone-300">
-              {[['month', 'รายเดือน'], ['year', 'รายปี'], ['all', 'ทั้งหมด']].map(([k, l]) => (
+              {[['month', t('pMonth')], ['year', t('pYear')], ['all', t('pAll')]].map(([k, l]) => (
                 <button key={k} onClick={() => setPeriodMode(k)} className={`px-4 py-2 text-sm font-semibold ${periodMode === k ? 'bg-slate-900 text-amber-200' : 'bg-white text-stone-600'}`}>{l}</button>
               ))}
             </div>
             {periodMode === 'month' && (
               <select value={selMonth} onChange={(e) => setSelMonth(e.target.value)} className="px-3 py-2 border border-stone-300 rounded-lg bg-white">
-                {THAI_MONTHS.map((m, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
+                {MONTHS.map((m, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
               </select>
             )}
             {periodMode !== 'all' && (
               <select value={selYear} onChange={(e) => setSelYear(e.target.value)} className="px-3 py-2 border border-stone-300 rounded-lg bg-white">
-                {years.map((y) => <option key={y} value={y}>ปี {Number(y) + 543}</option>)}
+                {years.map((y) => <option key={y} value={y}>{t('yearWord')} {yearDisp(y)}</option>)}
               </select>
             )}
             <span className="text-stone-500 text-sm ml-1">· {periodLabel}</span>
@@ -807,28 +885,28 @@ export default function QuotationSystem() {
 
           {/* ปุ่มบันทึก */}
           <div className="flex flex-col sm:flex-row gap-3 mb-5">
-            <button onClick={() => openTxn('in')} className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold shadow-md"><TrendingUp size={20} /> บันทึกรายรับ</button>
-            <button onClick={() => openTxn('out')} className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-rose-700 hover:bg-rose-800 text-white rounded-lg font-semibold shadow-md"><TrendingDown size={20} /> บันทึกรายจ่าย</button>
+            <button onClick={() => openTxn('in')} className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold shadow-md"><TrendingUp size={20} /> {t('addIncome')}</button>
+            <button onClick={() => openTxn('out')} className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-rose-700 hover:bg-rose-800 text-white rounded-lg font-semibold shadow-md"><TrendingDown size={20} /> {t('addExpense')}</button>
           </div>
 
           {/* การ์ดสรุป */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white border border-stone-200 rounded-lg p-4"><p className="text-stone-500 text-sm flex items-center gap-1"><TrendingUp size={15} className="text-emerald-600" /> รายรับ</p><p className="text-2xl font-bold text-emerald-700 mt-1">{baht(totalIn)} ฿</p></div>
-            <div className="bg-white border border-stone-200 rounded-lg p-4"><p className="text-stone-500 text-sm flex items-center gap-1"><TrendingDown size={15} className="text-rose-600" /> รายจ่าย</p><p className="text-2xl font-bold text-rose-700 mt-1">{baht(totalOut)} ฿</p></div>
-            <div className="bg-white border border-stone-200 rounded-lg p-4"><p className="text-stone-500 text-sm">คงเหลือสุทธิ</p><p className={`text-2xl font-bold mt-1 ${net >= 0 ? 'text-slate-900' : 'text-rose-700'}`}>{baht(net)} ฿</p></div>
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4"><p className="text-amber-800 text-sm">ค้างรับจากลูกค้า</p><p className="text-2xl font-bold text-amber-700 mt-1">{baht(totalOutstanding)} ฿</p></div>
+            <div className="bg-white border border-stone-200 rounded-lg p-4"><p className="text-stone-500 text-sm flex items-center gap-1"><TrendingUp size={15} className="text-emerald-600" /> {t('income')}</p><p className="text-2xl font-bold text-emerald-700 mt-1">{baht(totalIn)} ฿</p></div>
+            <div className="bg-white border border-stone-200 rounded-lg p-4"><p className="text-stone-500 text-sm flex items-center gap-1"><TrendingDown size={15} className="text-rose-600" /> {t('expense')}</p><p className="text-2xl font-bold text-rose-700 mt-1">{baht(totalOut)} ฿</p></div>
+            <div className="bg-white border border-stone-200 rounded-lg p-4"><p className="text-stone-500 text-sm">{t('net')}</p><p className={`text-2xl font-bold mt-1 ${net >= 0 ? 'text-slate-900' : 'text-rose-700'}`}>{baht(net)} ฿</p></div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4"><p className="text-amber-800 text-sm">{t('outstanding')}</p><p className="text-2xl font-bold text-amber-700 mt-1">{baht(totalOutstanding)} ฿</p></div>
           </div>
 
           {/* สรุปรายเดือน (เฉพาะมุมมองรายปี) */}
           {monthly && (
             <div className="bg-white border border-stone-200 rounded-lg p-4 mb-6 overflow-x-auto">
-              <p className="font-semibold text-stone-800 mb-3">สรุปแยกรายเดือน · ปี {Number(selYear) + 543}</p>
+              <p className="font-semibold text-stone-800 mb-3">{t('monthlyTitle')} {yearDisp(selYear)}</p>
               <table className="w-full text-sm min-w-[480px]">
-                <thead><tr className="text-stone-500 border-b border-stone-200"><th className="text-left py-2">เดือน</th><th className="text-right py-2">รายรับ</th><th className="text-right py-2">รายจ่าย</th><th className="text-right py-2">คงเหลือ</th></tr></thead>
+                <thead><tr className="text-stone-500 border-b border-stone-200"><th className="text-left py-2">{t('tMonth')}</th><th className="text-right py-2">{t('tIncome')}</th><th className="text-right py-2">{t('tExpense')}</th><th className="text-right py-2">{t('tBalance')}</th></tr></thead>
                 <tbody>
                   {monthly.map((r) => (
                     <tr key={r.m} className="border-b border-stone-100">
-                      <td className="py-2">{THAI_MONTHS[r.m]}</td>
+                      <td className="py-2">{MONTHS[r.m]}</td>
                       <td className="py-2 text-right text-emerald-700">{r.in ? baht(r.in) : '-'}</td>
                       <td className="py-2 text-right text-rose-700">{r.out ? baht(r.out) : '-'}</td>
                       <td className="py-2 text-right font-semibold">{baht(r.in - r.out)}</td>
@@ -842,15 +920,15 @@ export default function QuotationSystem() {
           {/* ค้างรับแยกตามโครงการ */}
           {projRows.length > 0 && (
             <div className="bg-white border border-stone-200 rounded-lg p-4 mb-6">
-              <p className="font-semibold text-stone-800 mb-3">ยอดแต่ละโครงการ (รับแล้ว / ค้างรับ)</p>
+              <p className="font-semibold text-stone-800 mb-3">{t('projAmounts')}</p>
               <div className="space-y-2">
                 {projRows.sort((a, b) => b.outstanding - a.outstanding).map((r) => (
                   <div key={r.q.id} className="flex items-center justify-between gap-3 py-2 border-b border-stone-100 last:border-0">
                     <div className="min-w-0">
-                      <p className="font-medium text-stone-800 truncate">{r.q.customerName || 'ไม่ระบุชื่อ'}<span className="text-stone-400 font-normal">{r.q.project ? ' · ' + r.q.project : ''}</span></p>
-                      <p className="text-xs text-stone-500">เสนอราคา {baht(r.q.total)} ฿ · รับแล้ว {baht(r.received)} ฿</p>
+                      <p className="font-medium text-stone-800 truncate">{r.q.customerName || t('noName')}<span className="text-stone-400 font-normal">{r.q.project ? ' · ' + r.q.project : ''}</span></p>
+                      <p className="text-xs text-stone-500">{t('quoted')} {baht(r.q.total)} ฿ · {t('received')} {baht(r.received)} ฿</p>
                     </div>
-                    <span className={`whitespace-nowrap font-semibold ${r.outstanding > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{r.outstanding > 0 ? 'ค้าง ' + baht(r.outstanding) + ' ฿' : 'ครบแล้ว ✓'}</span>
+                    <span className={`whitespace-nowrap font-semibold ${r.outstanding > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{r.outstanding > 0 ? t('owe') + ' ' + baht(r.outstanding) + ' ฿' : t('complete')}</span>
                   </div>
                 ))}
               </div>
@@ -858,25 +936,28 @@ export default function QuotationSystem() {
           )}
 
           {/* รายการเงินในช่วงที่เลือก */}
-          <p className="font-semibold text-stone-800 mb-3">รายการเงิน · {periodLabel} ({periodTxns.length})</p>
+          <p className="font-semibold text-stone-800 mb-3">{t('txnList')} · {periodLabel} ({periodTxns.length})</p>
           {periodTxns.length === 0 ? (
             <div className="bg-white border border-stone-200 rounded-lg p-10 text-center text-stone-400">
               <Wallet size={40} className="mx-auto mb-2 opacity-40" />
-              ยังไม่มีรายการเงินในช่วงนี้ — กดปุ่ม "บันทึกรายรับ/รายจ่าย" ด้านบน
+              {t('emptyTxn')}
             </div>
           ) : (
             <div className="space-y-2">
-              {periodTxns.map((t) => (
-                <div key={t.id} className="bg-white border border-stone-200 rounded-lg p-3 flex items-center gap-3 cursor-pointer hover:border-stone-300" onClick={() => openTxn(t.type, t)}>
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${t.type === 'in' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{t.type === 'in' ? <TrendingUp size={18} /> : <TrendingDown size={18} />}</div>
+              {periodTxns.map((tx) => {
+                const methodLabel = lang === 'en' ? (METHOD_LABEL[tx.method] || tx.method) : tx.method;
+                const catLabel = lang === 'en' ? (CAT_LABEL[tx.category] || tx.category) : tx.category;
+                return (
+                <div key={tx.id} className="bg-white border border-stone-200 rounded-lg p-3 flex items-center gap-3 cursor-pointer hover:border-stone-300" onClick={() => openTxn(tx.type, tx)}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${tx.type === 'in' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{tx.type === 'in' ? <TrendingUp size={18} /> : <TrendingDown size={18} />}</div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-stone-800 truncate">{t.type === 'in' ? (t.installment || t.quotationLabel || 'รายรับ') : (t.category || 'รายจ่าย')}{t.note ? <span className="text-stone-400 font-normal"> · {t.note}</span> : ''}</p>
-                    <p className="text-xs text-stone-500">{t.date} · {t.method}{t.type === 'in' && t.quotationLabel ? ' · ' + t.quotationLabel : ''}</p>
+                    <p className="font-medium text-stone-800 truncate">{tx.type === 'in' ? (tx.installment || tx.quotationLabel || t('income')) : (catLabel || t('expense'))}{tx.note ? <span className="text-stone-400 font-normal"> · {tx.note}</span> : ''}</p>
+                    <p className="text-xs text-stone-500">{tx.date} · {methodLabel}{tx.type === 'in' && tx.quotationLabel ? ' · ' + tx.quotationLabel : ''}</p>
                   </div>
-                  {t.slip && <img src={t.slip} alt="slip" className="w-9 h-9 rounded object-cover border border-stone-200 flex-shrink-0" />}
-                  <span className={`whitespace-nowrap font-bold ${t.type === 'in' ? 'text-emerald-700' : 'text-rose-700'}`}>{t.type === 'in' ? '+' : '−'}{baht(t.amount)} ฿</span>
+                  {tx.slip && <img src={tx.slip} alt="slip" className="w-9 h-9 rounded object-cover border border-stone-200 flex-shrink-0" />}
+                  <span className={`whitespace-nowrap font-bold ${tx.type === 'in' ? 'text-emerald-700' : 'text-rose-700'}`}>{tx.type === 'in' ? '+' : '−'}{baht(tx.amount)} ฿</span>
                 </div>
-              ))}
+              ); })}
             </div>
           )}
         </div>
@@ -1086,18 +1167,19 @@ export default function QuotationSystem() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight">SQUARE ONE — Quotation System</h1>
-                  <p className="text-stone-400 text-sm">INSPECTOR AND DESIGNER · ระบบใบเสนอราคา</p>
+                  <p className="text-stone-400 text-sm">{t('appSub')}</p>
                 </div>
               </div>
               <div className="hidden md:flex items-center gap-2">
+                <LangToggle />
                 <button onClick={() => setView('finance')} className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-lg text-sm font-semibold">
-                  <Wallet size={16} /> สรุปยอดการเงิน
+                  <Wallet size={16} /> {t('financeSummary')}
                 </button>
                 <button onClick={() => { setSettingsForm(settings); setShowSettings(true); }} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-amber-500/30 text-amber-200 rounded-lg text-sm">
-                  <Settings size={16} /> ตั้งค่า
+                  <Settings size={16} /> {t('settings')}
                 </button>
                 <button onClick={() => setShowRateTable(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-amber-500/30 text-amber-200 rounded-lg text-sm">
-                  <Info size={16} /> ตารางอัตราค่าบริการ
+                  <Info size={16} /> {t('rateTable')}
                 </button>
               </div>
             </div>
@@ -1107,46 +1189,47 @@ export default function QuotationSystem() {
         <div className="max-w-6xl mx-auto px-6 py-8">
           <div className="flex flex-col sm:flex-row gap-3 mb-6">
             <button onClick={startNewQuotation} className="flex items-center gap-2 px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold shadow-md">
-              <Plus size={20} /> สร้างใบเสนอราคาใหม่
+              <Plus size={20} /> {t('newQuote')}
             </button>
             <button onClick={() => setView('finance')} className="md:hidden flex items-center justify-center gap-2 px-4 py-3 bg-amber-500 text-slate-900 rounded-lg font-semibold">
-              <Wallet size={18} /> สรุปยอดการเงิน
+              <Wallet size={18} /> {t('financeSummary')}
             </button>
             <div className="flex-1 relative">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-              <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="ค้นหา ชื่อลูกค้า / เลขที่ใบเสนอราคา..." className="w-full pl-10 pr-4 py-3 border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-700" />
+              <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder={t('searchPh')} className="w-full pl-10 pr-4 py-3 border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-700" />
             </div>
             <button onClick={() => setShowRateTable(true)} className="md:hidden flex items-center gap-2 px-4 py-3 bg-slate-900 text-amber-200 rounded-lg">
-              <Info size={16} /> อัตราค่าบริการ
+              <Info size={16} /> {t('rates')}
             </button>
             <button onClick={() => { setSettingsForm(settings); setShowSettings(true); }} className="md:hidden flex items-center gap-2 px-4 py-3 bg-slate-900 text-amber-200 rounded-lg">
-              <Settings size={16} /> ตั้งค่า
+              <Settings size={16} /> {t('settings')}
             </button>
+            <button onClick={toggleLang} className="md:hidden flex items-center gap-2 px-4 py-3 bg-slate-900 text-amber-200 rounded-lg">🌐 {lang === 'th' ? 'EN' : 'ไทย'}</button>
           </div>
 
           {legacyCount > 0 && (
             <div className="mb-6 bg-amber-50 border border-amber-300 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex-1">
-                <p className="font-semibold text-amber-900">พบใบเสนอราคาเดิมในเครื่องนี้ {legacyCount} ใบ ที่ยังไม่ได้อยู่บนคลาวด์</p>
-                <p className="text-sm text-amber-800">กดย้ายขึ้นคลาวด์ครั้งเดียว เพื่อให้เปิดจากเครื่องไหนก็เห็นข้อมูลชุดเดียวกัน (ข้อมูลเดิมไม่หาย)</p>
+                <p className="font-semibold text-amber-900">{t('migTitle', legacyCount)}</p>
+                <p className="text-sm text-amber-800">{t('migDesc')}</p>
               </div>
               <button onClick={migrateLocalToCloud} disabled={migrating} className="flex items-center justify-center gap-2 px-5 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white rounded-lg font-semibold whitespace-nowrap">
-                <Save size={18} /> {migrating ? 'กำลังย้าย…' : 'ย้ายข้อมูลขึ้นคลาวด์'}
+                <Save size={18} /> {migrating ? t('migging') : t('migBtn')}
               </button>
             </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div className="bg-white border border-stone-200 rounded-lg p-4">
-              <p className="text-stone-500 text-sm">ใบเสนอราคาทั้งหมด</p>
+              <p className="text-stone-500 text-sm">{t('statAll')}</p>
               <p className="text-3xl font-bold text-stone-900">{quotations.length}</p>
             </div>
             <div className="bg-white border border-stone-200 rounded-lg p-4">
-              <p className="text-stone-500 text-sm">มูลค่ารวม</p>
+              <p className="text-stone-500 text-sm">{t('statValue')}</p>
               <p className="text-3xl font-bold text-emerald-700">{quotations.reduce((s, q) => s + (q.total || 0), 0).toLocaleString('th-TH')} ฿</p>
             </div>
             <div className="bg-white border border-stone-200 rounded-lg p-4">
-              <p className="text-stone-500 text-sm">เดือนนี้</p>
+              <p className="text-stone-500 text-sm">{t('statMonth')}</p>
               <p className="text-3xl font-bold text-stone-900">
                 {quotations.filter(q => {
                   const d = new Date(q.savedAt);
@@ -1158,14 +1241,14 @@ export default function QuotationSystem() {
           </div>
 
           {loading ? (
-            <div className="text-center py-12 text-stone-500">กำลังโหลด...</div>
+            <div className="text-center py-12 text-stone-500">{t('loading')}</div>
           ) : filteredQuotations.length === 0 ? (
             <div className="bg-white border border-stone-200 rounded-lg p-12 text-center">
               <FileText className="mx-auto text-stone-300 mb-3" size={48} />
-              <p className="text-stone-500 mb-4">{searchTerm ? 'ไม่พบใบเสนอราคาที่ค้นหา' : 'ยังไม่มีใบเสนอราคา เริ่มสร้างใบแรกได้เลย'}</p>
+              <p className="text-stone-500 mb-4">{searchTerm ? t('emptySearch') : t('emptyNone')}</p>
               {!searchTerm && (
                 <button onClick={startNewQuotation} className="inline-flex items-center gap-2 px-6 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg">
-                  <Plus size={18} /> สร้างใบเสนอราคา
+                  <Plus size={18} /> {t('createQuote')}
                 </button>
               )}
             </div>
@@ -1174,12 +1257,12 @@ export default function QuotationSystem() {
               <table className="w-full">
                 <thead className="bg-stone-50 border-b border-stone-200">
                   <tr>
-                    <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700">เลขที่</th>
-                    <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700">ลูกค้า</th>
-                    <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700 hidden md:table-cell">ที่อยู่</th>
-                    <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700 hidden sm:table-cell">วันที่</th>
-                    <th className="text-right px-4 py-3 text-sm font-semibold text-stone-700">รวม</th>
-                    <th className="text-center px-4 py-3 text-sm font-semibold text-stone-700">จัดการ</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700">{t('cNo')}</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700">{t('cCustomer')}</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700 hidden md:table-cell">{t('cAddress')}</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700 hidden sm:table-cell">{t('cDate')}</th>
+                    <th className="text-right px-4 py-3 text-sm font-semibold text-stone-700">{t('cTotal')}</th>
+                    <th className="text-center px-4 py-3 text-sm font-semibold text-stone-700">{t('cManage')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1192,10 +1275,10 @@ export default function QuotationSystem() {
                       <td className="px-4 py-3 text-right font-semibold text-emerald-700">{Number(q.total || 0).toLocaleString('th-TH')} ฿</td>
                       <td className="px-4 py-3">
                         <div className="flex justify-center gap-1">
-                          <button onClick={() => previewQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title="ดู"><Eye size={16} /></button>
-                          <button onClick={() => duplicateQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title="คัดลอก"><Copy size={16} /></button>
-                          <button onClick={() => editQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title="แก้ไข"><FileText size={16} /></button>
-                          <button onClick={() => deleteQuotation(q.id)} className="p-2 hover:bg-red-100 rounded text-red-600" title="ลบ"><Trash2 size={16} /></button>
+                          <button onClick={() => previewQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipView')}><Eye size={16} /></button>
+                          <button onClick={() => duplicateQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipCopy')}><Copy size={16} /></button>
+                          <button onClick={() => editQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipEdit')}><FileText size={16} /></button>
+                          <button onClick={() => deleteQuotation(q.id)} className="p-2 hover:bg-red-100 rounded text-red-600" title={t('tipDelete')}><Trash2 size={16} /></button>
                         </div>
                       </td>
                     </tr>
