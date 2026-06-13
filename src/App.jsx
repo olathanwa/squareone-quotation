@@ -57,6 +57,13 @@ const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.
 const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // ป้ายแสดงผลของช่องทาง/หมวด (เก็บค่าจริงเป็นไทยเสมอ แค่แสดงผลตามภาษา)
 const METHOD_LABEL = { 'โอน': 'Transfer', 'เงินสด': 'Cash', 'เช็ค': 'Cheque', 'อื่นๆ': 'Other' };
+// สถานะงานของแต่ละโครงการ (ตั้งเอง)
+const QSTATUS = {
+  open: { th: 'รอตอบรับ', en: 'Pending', cls: 'bg-stone-200 text-stone-600' },
+  accepted: { th: 'ตอบรับแล้ว', en: 'Accepted', cls: 'bg-blue-100 text-blue-700' },
+  reported: { th: 'ส่งรายงานแล้ว', en: 'Report sent', cls: 'bg-amber-100 text-amber-700' },
+  done: { th: 'จบงาน', en: 'Completed', cls: 'bg-emerald-100 text-emerald-700' },
+};
 const CAT_LABEL = { 'ค่าเดินทาง': 'Travel', 'ค่าจ้างทีม': 'Team wages', 'ค่าอุปกรณ์': 'Equipment', 'ค่าเอกสาร': 'Documents', 'ค่าการตลาด': 'Marketing', 'อื่นๆ': 'Other' };
 
 // ===== CSS โหมดมืด — ทับเฉพาะสีโทนกลางเมื่อมีคลาส .sqdark (คงสีปุ่ม accent ไว้) =====
@@ -129,6 +136,7 @@ const T = {
     exportCsv: 'ส่งออก Excel', printReport: 'พิมพ์รายงาน', sortBy: 'เรียงโดย',
     payTitle: 'รับเงินรายงวด', confirmReceived: 'ยืนยันรับเงิน', receivedBadge: 'รับแล้ว', receiptBtn: 'ใบเสร็จ',
     noInstallments: 'ใบนี้ยังไม่มีงวดงาน — เพิ่มงวดในหน้าแก้ไขก่อน', paidOn: 'รับเมื่อ', hasSlip: 'มีสลิป', close: 'ปิด', paySummary: 'รับแล้ว',
+    statusLabel: 'สถานะงาน', onlyOwing: 'เฉพาะค้างรับ',
   },
   en: {
     appSub: 'INSPECTOR AND DESIGNER · Quotation System',
@@ -162,6 +170,7 @@ const T = {
     exportCsv: 'Export Excel', printReport: 'Print report', sortBy: 'Sort by',
     payTitle: 'Installment Payments', confirmReceived: 'Confirm received', receivedBadge: 'Received', receiptBtn: 'Receipt',
     noInstallments: 'No installments yet — add them in Edit first', paidOn: 'Received on', hasSlip: 'Slip', close: 'Close', paySummary: 'Received',
+    statusLabel: 'Job status', onlyOwing: 'Outstanding only',
   },
 };
 const baht = (n) => (Number(n) || 0).toLocaleString('th-TH');
@@ -284,6 +293,7 @@ export default function QuotationSystem() {
   const [txnFilter, setTxnFilter] = useState('all'); // all | in | out
   const [txnSort, setTxnSort] = useState('dateDesc'); // dateDesc | dateAsc | amountDesc
   const [paymentQ, setPaymentQ] = useState(null); // โครงการที่กำลังจัดการรับเงินรายงวด
+  const [onlyOwing, setOnlyOwing] = useState(false); // กรองเฉพาะที่ยังค้างรับ (ไว้ตามเก็บเงิน)
   // ===== ล็อกด้วยรหัสผ่าน =====
   const [unlocked, setUnlocked] = useState(() => { try { return sessionStorage.getItem('sq_unlocked') === '1'; } catch { return false; } });
   const [pwInput, setPwInput] = useState('');
@@ -688,6 +698,14 @@ export default function QuotationSystem() {
     } catch (e) { console.error(e); }
   };
 
+  // อัปเดตสถานะงานของโครงการ
+  const updateQuotationStatus = async (q, status) => {
+    const updated = { ...q, status };
+    try { await window.storage.set(`quotation:${q.id}`, JSON.stringify(updated)); } catch (e) { console.error(e); }
+    setQuotations((prev) => prev.map((x) => (x.id === q.id ? updated : x)));
+    if (paymentQ && paymentQ.id === q.id) setPaymentQ(updated);
+  };
+
   const previewQuotation = (q) => {
     setForm({ ...getDefaultForm(), ...q });
     setEditingId(q.id);
@@ -760,6 +778,12 @@ export default function QuotationSystem() {
             <button onClick={() => setPaymentQ(null)} className="opacity-80 hover:opacity-100 flex-shrink-0"><X size={22} /></button>
           </div>
           <div className="p-5 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm text-stone-600">{t('statusLabel')}</span>
+              <select value={q.status || 'open'} onChange={(e) => updateQuotationStatus(q, e.target.value)} className="px-3 py-1.5 border border-stone-300 rounded-lg bg-white text-sm font-medium">
+                {Object.entries(QSTATUS).map(([k, v]) => <option key={k} value={k}>{lang === 'en' ? v.en : v.th}</option>)}
+              </select>
+            </div>
             <div className="flex justify-between items-center text-sm bg-stone-50 rounded-lg p-3">
               <span className="text-stone-600">{t('paySummary')}</span>
               <span className="font-bold text-emerald-700">{baht(totalReceived)} / {baht(Number(q.total) || 0)} ฿</span>
@@ -1532,6 +1556,7 @@ export default function QuotationSystem() {
     const ymNow = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}`;
     const incomeThisMonth = transactions.filter((t) => t.type === 'in' && ymOf(t.date) === ymNow).reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const totalOutstanding = quotations.reduce((s, q) => s + Math.max(0, (Number(q.total) || 0) - (receivedByQ[q.id] || 0)), 0);
+    const displayedQuotations = onlyOwing ? filteredQuotations.filter((q) => ((Number(q.total) || 0) - (receivedByQ[q.id] || 0)) > 0) : filteredQuotations;
     return (
       <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
         <PaymentsModal />
@@ -1591,6 +1616,9 @@ export default function QuotationSystem() {
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
               <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder={t('searchPh')} className="w-full pl-10 pr-4 py-3 border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-700" />
             </div>
+            <button onClick={() => setOnlyOwing((v) => !v)} className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm whitespace-nowrap border ${onlyOwing ? 'bg-amber-500 border-amber-500 text-slate-900' : 'bg-white border-stone-300 text-stone-700 hover:bg-stone-50'}`} title={t('onlyOwing')}>
+              <Wallet size={16} /> {t('onlyOwing')}
+            </button>
           </div>
 
           {legacyCount > 0 && (
@@ -1626,7 +1654,7 @@ export default function QuotationSystem() {
 
           {loading ? (
             <div className="text-center py-12 text-stone-500">{t('loading')}</div>
-          ) : filteredQuotations.length === 0 ? (
+          ) : displayedQuotations.length === 0 ? (
             <div className="bg-white border border-stone-200 rounded-lg p-12 text-center">
               <FileText className="mx-auto text-stone-300 mb-3" size={48} />
               <p className="text-stone-500 mb-4">{searchTerm ? t('emptySearch') : t('emptyNone')}</p>
@@ -1651,12 +1679,15 @@ export default function QuotationSystem() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredQuotations.map((q) => {
+                  {displayedQuotations.map((q) => {
                     const st = qStatus(q);
                     return (
                     <tr key={q.id} className="border-b border-stone-100 hover:bg-stone-50">
                       <td className="px-4 py-3 font-mono text-sm">{q.quotationNo}</td>
-                      <td className="px-4 py-3 font-semibold">{q.customerName}</td>
+                      <td className="px-4 py-3 font-semibold">
+                        {q.customerName}
+                        {(() => { const ws = QSTATUS[q.status] || QSTATUS.open; return <div className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${ws.cls}`}>{lang === 'en' ? ws.en : ws.th}</div>; })()}
+                      </td>
                       <td className="px-4 py-3 text-sm text-stone-600 hidden md:table-cell max-w-xs truncate">{q.address}</td>
                       <td className="px-4 py-3 text-sm text-stone-600 hidden sm:table-cell">{formatDate(q.date)}</td>
                       <td className="px-4 py-3 text-right font-semibold text-emerald-700">{Number(q.total || 0).toLocaleString('th-TH')} ฿</td>
@@ -1686,6 +1717,12 @@ export default function QuotationSystem() {
 
   const currentRate = calculateRate(form.propertyType, form.propertyArea);
   const areaInRange = form.propertyArea && currentRate !== null;
+  // รายชื่อลูกค้าเก่า (ไม่ซ้ำ) สำหรับเลือกเติมอัตโนมัติ
+  const pastCustomers = (() => {
+    const m = new Map();
+    quotations.forEach((q) => { const nm = (q.customerName || '').trim(); if (nm) m.set(nm, { name: q.customerName, address: q.address || '' }); });
+    return [...m.values()].sort((a, b) => a.name.localeCompare(b.name, 'th'));
+  })();
   
   return (
     <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
@@ -1736,6 +1773,15 @@ export default function QuotationSystem() {
         <div className="bg-white border border-stone-200 rounded-lg p-6">
           <h3 className="font-semibold text-stone-900 mb-4 pb-2 border-b border-stone-200">{bi('ข้อมูลลูกค้า', 'Customer')}</h3>
           <div className="space-y-4">
+            {pastCustomers.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1">👤 {bi('เลือกลูกค้าเก่า (เติมให้อัตโนมัติ)', 'Pick existing customer (autofill)')}</label>
+                <select value="" onChange={(e) => { const c = pastCustomers.find((x) => x.name === e.target.value); if (c) setForm({ ...form, customerName: c.name, address: c.address }); }} className="w-full px-3 py-2 border border-stone-300 rounded bg-stone-50 focus:outline-none focus:border-emerald-700">
+                  <option value="">{bi('— ลูกค้าใหม่ / เลือกจากรายชื่อเก่า —', '— New / pick from list —')}</option>
+                  {pastCustomers.map((c, i) => <option key={i} value={c.name}>{c.name}</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อลูกค้า', 'Customer Name')} *</label>
               <input type="text" value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} placeholder={bi('เช่น คุณสิทธาวุฒิ มีสุข', 'e.g. John Smith')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
