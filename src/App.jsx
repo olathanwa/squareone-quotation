@@ -127,6 +127,8 @@ const T = {
     cancel: 'ยกเลิก', save: 'บันทึก', yearWord: 'ปี',
     filterAll: 'ทั้งหมด', sortNewest: 'ล่าสุดก่อน', sortOldest: 'เก่าสุดก่อน', sortHighest: 'ยอดมากสุด',
     exportCsv: 'ส่งออก Excel', printReport: 'พิมพ์รายงาน', sortBy: 'เรียงโดย',
+    payTitle: 'รับเงินรายงวด', confirmReceived: 'ยืนยันรับเงิน', receivedBadge: 'รับแล้ว', receiptBtn: 'ใบเสร็จ',
+    noInstallments: 'ใบนี้ยังไม่มีงวดงาน — เพิ่มงวดในหน้าแก้ไขก่อน', paidOn: 'รับเมื่อ', hasSlip: 'มีสลิป', close: 'ปิด', paySummary: 'รับแล้ว',
   },
   en: {
     appSub: 'INSPECTOR AND DESIGNER · Quotation System',
@@ -158,6 +160,8 @@ const T = {
     cancel: 'Cancel', save: 'Save', yearWord: 'Year',
     filterAll: 'All', sortNewest: 'Newest first', sortOldest: 'Oldest first', sortHighest: 'Highest amount',
     exportCsv: 'Export Excel', printReport: 'Print report', sortBy: 'Sort by',
+    payTitle: 'Installment Payments', confirmReceived: 'Confirm received', receivedBadge: 'Received', receiptBtn: 'Receipt',
+    noInstallments: 'No installments yet — add them in Edit first', paidOn: 'Received on', hasSlip: 'Slip', close: 'Close', paySummary: 'Received',
   },
 };
 const baht = (n) => (Number(n) || 0).toLocaleString('th-TH');
@@ -220,6 +224,45 @@ const buildFinanceReportHTML = ({ companyName, periodLabel, totalIn, totalOut, n
 </body></html>`;
 };
 
+// ใบเสร็จรับเงินรายงวด (พิมพ์ได้ กระดาษขาว)
+const buildReceiptHTML = ({ company, customer, project, quotationNo, receiptNo, itemName, amount, amountWords, dateStr, method, slip, lang }) => {
+  const en = lang === 'en';
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+  const n2 = (n) => (Number(n) || 0).toLocaleString('th-TH');
+  const L = en
+    ? { title: 'Receipt', subtitle: 'RECEIPT', receiptNo: 'Receipt No.', date: 'Date', customer: 'Received from', project: 'Project', ref: 'Quotation Ref.', item: 'Description', amount: 'Amount (THB)', total: 'Total', method: 'Method', slip: 'Transfer slip', received: 'Received by', print: 'Print / Save PDF', thanks: 'Thank you' }
+    : { title: 'ใบเสร็จรับเงิน', subtitle: 'ใบเสร็จรับเงิน / RECEIPT', receiptNo: 'เลขที่ใบเสร็จ', date: 'วันที่รับเงิน', customer: 'ได้รับเงินจาก', project: 'โครงการ', ref: 'อ้างอิงใบเสนอราคา', item: 'รายการ', amount: 'จำนวนเงิน (บาท)', total: 'รวมรับเงิน', method: 'ช่องทางรับเงิน', slip: 'หลักฐานการโอน', received: 'ผู้รับเงิน', print: 'พิมพ์ / บันทึก PDF', thanks: 'ขอบคุณครับ' };
+  return `<!doctype html><html lang="${en ? 'en' : 'th'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${L.title} ${esc(receiptNo)}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap');
+body{font-family:'Sarabun',-apple-system,'Segoe UI',Tahoma,sans-serif;color:#1B2430;max-width:720px;margin:0 auto;padding:30px 26px;line-height:1.5}
+.head{text-align:center;border-bottom:2px solid #1B2430;padding-bottom:10px}.head h1{font-size:18px;margin:0}.muted{color:#667;font-size:13px}
+h2{text-align:center;font-size:20px;margin:16px 0}
+table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}th,td{border:1px solid #1B2430;padding:8px 10px}th{background:#f1efe9}
+.info{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}.info td{border:1px solid #1B2430;padding:8px 10px}
+.tot{font-size:18px;font-weight:700;color:#0f766e}
+.btn{position:fixed;top:14px;right:14px;background:#0f766e;color:#fff;border:none;padding:10px 16px;border-radius:8px;cursor:pointer}@media print{.btn{display:none}}
+.sign{margin-top:48px;display:flex;justify-content:space-between;color:#667}
+</style></head>
+<body><button class="btn" onclick="window.print()">${L.print}</button>
+<div class="head"><h1>${esc(company.name || 'SquareOne')}</h1><div class="muted">${esc(company.address || '')}</div><div class="muted">${company.phone ? 'โทร: ' + esc(company.phone) : ''}${company.taxId ? '　เลขภาษี ' + esc(company.taxId) : ''}</div></div>
+<h2>${L.subtitle}</h2>
+<table class="info"><tbody>
+<tr><td style="background:#f1efe9;font-weight:600;width:130px">${L.receiptNo}</td><td>${esc(receiptNo)}</td><td style="background:#f1efe9;font-weight:600;width:110px">${L.date}</td><td>${esc(dateStr)}</td></tr>
+<tr><td style="background:#f1efe9;font-weight:600">${L.customer}</td><td>${esc(customer || '-')}</td><td style="background:#f1efe9;font-weight:600">${L.ref}</td><td>${esc(quotationNo || '-')}</td></tr>
+<tr><td style="background:#f1efe9;font-weight:600">${L.project}</td><td colspan="3">${esc(project || '-')}</td></tr>
+</tbody></table>
+<table><thead><tr><th>${L.item}</th><th style="text-align:right;width:150px">${L.amount}</th></tr></thead>
+<tbody><tr><td>${esc(itemName || '-')}</td><td style="text-align:right">${n2(amount)}</td></tr>
+<tr><td style="text-align:right;font-weight:700">${L.total}</td><td style="text-align:right"><span class="tot">${n2(amount)}</span></td></tr>
+${amountWords ? `<tr><td colspan="2" style="text-align:right;font-style:italic">(${esc(amountWords)})</td></tr>` : ''}
+</tbody></table>
+<p style="margin-top:10px"><b>${L.method}:</b> ${esc(method || '-')}</p>
+${slip ? `<div style="margin-top:10px"><div class="muted">${L.slip}</div><img src="${slip}" style="max-width:280px;max-height:360px;border:1px solid #ccc;border-radius:6px;margin-top:6px"/></div>` : ''}
+<div class="sign"><div>........................................<br>${L.received}</div><div>........................................<br>${L.date}</div></div>
+</body></html>`;
+};
+
 export default function QuotationSystem() {
   const [view, setView] = useState('list');
   const [quotations, setQuotations] = useState([]);
@@ -240,6 +283,7 @@ export default function QuotationSystem() {
   const [selMonth, setSelMonth] = useState(String(nowD.getMonth() + 1).padStart(2, '0'));
   const [txnFilter, setTxnFilter] = useState('all'); // all | in | out
   const [txnSort, setTxnSort] = useState('dateDesc'); // dateDesc | dateAsc | amountDesc
+  const [paymentQ, setPaymentQ] = useState(null); // โครงการที่กำลังจัดการรับเงินรายงวด
   // ===== ภาษา (ไทย/อังกฤษ) =====
   const [lang, setLang] = useState('th');
   const t = (k, ...args) => { const v = (T[lang] || T.th)[k]; return typeof v === 'function' ? v(...args) : (v ?? k); };
@@ -641,6 +685,78 @@ export default function QuotationSystem() {
     if (!dateStr) return '';
     const d = new Date(dateStr);
     return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+  };
+
+  // ออกใบเสร็จอัตโนมัติของงวดที่รับเงินแล้ว
+  const printReceiptForInstallment = (q, inst, txn, idx) => {
+    const amt = Number(txn.amount) || Number(inst.amount) || 0;
+    const html = buildReceiptHTML({
+      company: { name: q.companyName || settings.companyName, address: q.companyAddress || settings.companyAddress, phone: q.companyPhone || settings.companyPhone, taxId: q.companyTaxId || settings.companyTaxId },
+      customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
+      receiptNo: `${q.quotationNo || 'RC'}-R${idx + 1}`,
+      itemName: inst.name, amount: amt, amountWords: numberToThaiWords(amt),
+      dateStr: formatDate(txn.date), method: txn.method, slip: txn.slip || null, lang,
+    });
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+    else downloadFile(html, `ใบเสร็จ_${q.quotationNo || 'RC'}.html`, 'text/html;charset=utf-8');
+  };
+
+  // โมดัลรับเงินรายงวดของแต่ละโครงการ
+  const PaymentsModal = () => {
+    if (!paymentQ) return null;
+    const q = paymentQ;
+    const insts = q.installments || [];
+    const qTxns = transactions.filter((tx) => tx.type === 'in' && tx.quotationId === q.id);
+    const findTxn = (name) => qTxns.find((tx) => (tx.installment || '').trim() === (name || '').trim());
+    const totalReceived = qTxns.reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+    const label = `${q.customerName || ''}${q.project ? ' · ' + q.project : ''}`;
+    return (
+      <div className="fixed inset-0 bg-black/50 z-40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={(e) => { if (e.target === e.currentTarget) setPaymentQ(null); }}>
+        <div className="bg-white w-full sm:max-w-lg sm:rounded-xl rounded-t-2xl max-h-[92vh] overflow-y-auto">
+          <div className="sticky top-0 px-5 py-4 flex items-center justify-between text-white bg-slate-900">
+            <div className="min-w-0"><h3 className="font-bold text-lg">{t('payTitle')}</h3><p className="text-stone-300 text-sm truncate">{q.quotationNo} · {q.customerName}</p></div>
+            <button onClick={() => setPaymentQ(null)} className="opacity-80 hover:opacity-100 flex-shrink-0"><X size={22} /></button>
+          </div>
+          <div className="p-5 space-y-3">
+            <div className="flex justify-between items-center text-sm bg-stone-50 rounded-lg p-3">
+              <span className="text-stone-600">{t('paySummary')}</span>
+              <span className="font-bold text-emerald-700">{baht(totalReceived)} / {baht(Number(q.total) || 0)} ฿</span>
+            </div>
+            {insts.length === 0 ? (
+              <p className="text-center text-stone-400 py-6">{t('noInstallments')}</p>
+            ) : insts.map((inst, idx) => {
+              const txn = findTxn(inst.name);
+              return (
+                <div key={idx} className="border border-stone-200 rounded-lg p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-stone-800">{idx + 1}. {inst.name}</p>
+                      <p className="text-sm text-stone-500">{baht(inst.amount)} ฿</p>
+                    </div>
+                    {txn && <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 whitespace-nowrap">✓ {t('receivedBadge')}</span>}
+                  </div>
+                  {txn ? (
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <div className="text-xs text-stone-500 min-w-0 truncate">{t('paidOn')} {txn.date} · {txn.method}</div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {txn.slip && <img src={txn.slip} alt="slip" className="w-9 h-9 rounded object-cover border border-stone-200" />}
+                        <button onClick={() => printReceiptForInstallment(q, inst, txn, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-slate-900 text-amber-200 rounded-lg text-sm whitespace-nowrap"><Printer size={14} /> {t('receiptBtn')}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => setTxnForm({ ...newTxn('in'), quotationId: q.id, quotationLabel: label, installment: inst.name, amount: inst.amount || '' })} className="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold"><TrendingUp size={16} /> {t('confirmReceived')}</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="sticky bottom-0 bg-white border-t border-stone-200 p-4">
+            <button onClick={() => setPaymentQ(null)} className="w-full px-4 py-3 bg-white border border-stone-300 text-stone-700 rounded-lg font-semibold">{t('close')}</button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const filteredQuotations = quotations.filter(q => 
@@ -1323,6 +1439,7 @@ export default function QuotationSystem() {
     const totalOutstanding = quotations.reduce((s, q) => s + Math.max(0, (Number(q.total) || 0) - (receivedByQ[q.id] || 0)), 0);
     return (
       <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+        <PaymentsModal />
         <TxnModal />
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap');
@@ -1454,7 +1571,7 @@ export default function QuotationSystem() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-center gap-1">
-                          <button onClick={() => setTxnForm({ ...newTxn('in'), quotationId: q.id, quotationLabel: `${q.customerName || ''}${q.project ? ' · ' + q.project : ''}`, amount: Math.max(0, (Number(q.total) || 0) - (receivedByQ[q.id] || 0)) || '' })} className="p-2 hover:bg-emerald-100 rounded text-emerald-700" title={t('tipReceive')}><TrendingUp size={16} /></button>
+                          <button onClick={() => setPaymentQ(q)} className="p-2 hover:bg-emerald-100 rounded text-emerald-700" title={t('payTitle')}><TrendingUp size={16} /></button>
                           <button onClick={() => previewQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipView')}><Eye size={16} /></button>
                           <button onClick={() => duplicateQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipCopy')}><Copy size={16} /></button>
                           <button onClick={() => editQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipEdit')}><FileText size={16} /></button>
