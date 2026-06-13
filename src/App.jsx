@@ -458,7 +458,18 @@ export default function QuotationSystem() {
 
   const generateQuotationNo = () => {
     const date = new Date();
-    return `SQ-${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const ym = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const prefix = `SQ-${ym}-`;
+    // หาเลขลำดับสูงสุดของเดือนนี้จากใบที่มีอยู่ แล้ว +1 (รันเลขท้ายตามเดือน)
+    let max = 0;
+    quotations.forEach((q) => {
+      const no = q.quotationNo || '';
+      if (no.startsWith(prefix)) {
+        const seq = parseInt(no.slice(prefix.length), 10);
+        if (!isNaN(seq) && seq > max) max = seq;
+      }
+    });
+    return `${prefix}${String(max + 1).padStart(3, '0')}`;
   };
 
   const autoCalculateInstallments = (total) => {
