@@ -502,6 +502,39 @@ export default function QuotationSystem() {
     }
   };
 
+  // สำรองข้อมูลทั้งหมดเป็นไฟล์ (ดาวน์โหลด)
+  const exportData = async () => {
+    try {
+      const data = {};
+      for (const prefix of ['quotation:', 'txn:']) {
+        const r = await window.storage.list(prefix);
+        for (const k of (r.keys || [])) { const x = await window.storage.get(k); if (x) data[k] = x.value; }
+      }
+      for (const k of ['app:settings', 'app:lang', 'app:theme']) { const x = await window.storage.get(k); if (x) data[k] = x.value; }
+      const blob = { app: 'squareone-quotation', exportedAt: new Date().toISOString(), data };
+      downloadFile(JSON.stringify(blob, null, 2), `squareone-สำรองข้อมูล-${new Date().toISOString().slice(0, 10)}.json`, 'application/json;charset=utf-8');
+    } catch (e) { console.error(e); alert(bi('สำรองข้อมูลไม่สำเร็จ', 'Backup failed')); }
+  };
+
+  // นำเข้า/กู้คืนจากไฟล์สำรอง
+  const importData = (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const blob = JSON.parse(ev.target.result);
+        if (!blob || typeof blob !== 'object' || !blob.data) throw new Error(bi('ไม่ใช่ไฟล์สำรองของระบบนี้', 'Not a valid backup file'));
+        const n = Object.keys(blob.data).filter((k) => k.startsWith('quotation:')).length;
+        if (!window.confirm(bi(`นำเข้าใบเสนอราคา ${n} ใบ + ข้อมูลการเงิน?\nคีย์ที่ซ้ำจะถูกเขียนทับ`, `Import ${n} quotations + finance data?\nMatching keys will be overwritten.`))) { e.target.value = ''; return; }
+        for (const [k, v] of Object.entries(blob.data)) { await window.storage.set(k, v); }
+        alert(bi('นำเข้าข้อมูลเรียบร้อย กำลังรีโหลด', 'Imported. Reloading…'));
+        window.location.reload();
+      } catch (err) { console.error(err); alert(bi('นำเข้าไม่สำเร็จ: ', 'Import failed: ') + (err?.message || err)); }
+      finally { if (e.target) e.target.value = ''; }
+    };
+    reader.readAsText(file);
+  };
+
   const resetSettings = () => {
     if (confirm('คืนค่าเริ่มต้น? (ยังไม่บันทึก คุณต้องกดบันทึกอีกครั้ง)')) {
       setSettingsForm(DEFAULT_SETTINGS);
@@ -952,6 +985,21 @@ export default function QuotationSystem() {
               className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700"
             />
             <p className="text-xs text-stone-500 mt-2">{bi('ตั้งรหัสแล้ว ทุกคนต้องใส่รหัสก่อนเข้าระบบ (จำไว้จนปิดเบราว์เซอร์)', 'When set, everyone must enter it to open the app (remembered until browser closes)')}</p>
+          </div>
+
+          {/* สำรอง/กู้คืนข้อมูล */}
+          <div className="border border-stone-300 rounded-lg p-4">
+            <h4 className="font-semibold text-stone-900 mb-3 flex items-center gap-2">💾 {bi('สำรอง / กู้คืนข้อมูล', 'Backup / Restore')}</h4>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button onClick={exportData} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-semibold text-sm">
+                <Download size={16} /> {bi('สำรองข้อมูล (ดาวน์โหลด)', 'Backup (download)')}
+              </button>
+              <label className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 rounded-lg font-semibold text-sm cursor-pointer">
+                <ArrowLeft size={16} /> {bi('นำเข้า / กู้คืน', 'Restore')}
+                <input type="file" accept="application/json,.json" className="hidden" onChange={importData} />
+              </label>
+            </div>
+            <p className="text-xs text-stone-500 mt-2">{bi('แนะนำให้สำรองเก็บไว้เป็นระยะ กันข้อมูลหาย', 'Back up regularly to keep your data safe')}</p>
           </div>
 
           {/* คำเตือน */}
