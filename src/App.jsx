@@ -294,6 +294,8 @@ export default function QuotationSystem() {
   const [txnSort, setTxnSort] = useState('dateDesc'); // dateDesc | dateAsc | amountDesc
   const [paymentQ, setPaymentQ] = useState(null); // โครงการที่กำลังจัดการรับเงินรายงวด
   const [onlyOwing, setOnlyOwing] = useState(false); // กรองเฉพาะที่ยังค้างรับ (ไว้ตามเก็บเงิน)
+  const [shareLinkQ, setShareLinkQ] = useState(null); // ใบที่กำลังแสดงลิงก์แชร์
+  const [linkCopied, setLinkCopied] = useState(false);
   // ===== โหมดแชร์ลิงก์ให้ลูกค้า (?q=<id>) =====
   const shareId = (() => { try { return new URLSearchParams(window.location.search).get('q'); } catch { return null; } })();
   const shareMode = !!shareId;
@@ -716,15 +718,39 @@ export default function QuotationSystem() {
     } catch (e) { console.error(e); }
   };
 
-  // คัดลอกลิงก์ใบเสนอราคาสำหรับส่งให้ลูกค้า
-  const copyShareLink = async (q) => {
-    const url = `${window.location.origin}${window.location.pathname}?q=${q.id}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      alert(bi('คัดลอกลิงก์แล้ว — ส่งให้ลูกค้าได้เลย\n\n', 'Link copied — send it to your customer\n\n') + url);
-    } catch {
-      window.prompt(bi('คัดลอกลิงก์นี้ส่งให้ลูกค้า:', 'Copy this link for your customer:'), url);
-    }
+  // ลิงก์ใบเสนอราคาสำหรับส่งให้ลูกค้า
+  const shareUrl = (q) => `${window.location.origin}${window.location.pathname}?q=${q.id}`;
+  const doCopyLink = () => {
+    if (!shareLinkQ) return;
+    const url = shareUrl(shareLinkQ);
+    const el = document.getElementById('sharelink-input');
+    if (el) { el.focus(); el.select(); try { document.execCommand('copy'); } catch { /* ignore */ } } // คัดลอกแบบ sync
+    if (navigator.clipboard) { try { navigator.clipboard.writeText(url).catch(() => {}); } catch { /* ignore */ } } // เผื่อรองรับ
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+  const ShareLinkModal = () => {
+    if (!shareLinkQ) return null;
+    const url = shareUrl(shareLinkQ);
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={(e) => { if (e.target === e.currentTarget) setShareLinkQ(null); }}>
+        <div className="bg-white w-full sm:max-w-lg sm:rounded-xl rounded-t-2xl">
+          <div className="px-5 py-4 flex items-center justify-between text-white bg-slate-900 sm:rounded-t-xl">
+            <h3 className="font-bold text-lg flex items-center gap-2"><Share2 size={20} /> {bi('ลิงก์ใบเสนอราคา', 'Quotation link')}</h3>
+            <button onClick={() => setShareLinkQ(null)} className="opacity-80 hover:opacity-100"><X size={22} /></button>
+          </div>
+          <div className="p-5 space-y-3">
+            <p className="font-medium text-stone-800">{shareLinkQ.quotationNo} · {shareLinkQ.customerName}</p>
+            <p className="text-sm text-stone-500">{bi('ส่งลิงก์นี้ให้ลูกค้า เปิดดู/พิมพ์ใบเสนอราคาได้ (อ่านอย่างเดียว ไม่ต้องใส่รหัส)', 'Send this link to your customer to view/print the quotation (read-only, no password)')}</p>
+            <input id="sharelink-input" readOnly value={url} onClick={(e) => e.target.select()} className="w-full px-3 py-2.5 border border-stone-300 rounded-lg bg-stone-50 text-sm text-stone-700 font-mono" />
+            <button onClick={doCopyLink} className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold text-white ${linkCopied ? 'bg-emerald-600' : 'bg-emerald-700 hover:bg-emerald-800'}`}>
+              {linkCopied ? <>✓ {bi('คัดลอกแล้ว', 'Copied')}</> : <><Copy size={18} /> {bi('คัดลอกลิงก์', 'Copy link')}</>}
+            </button>
+            <a href={url} target="_blank" rel="noreferrer" className="block text-center text-sm text-blue-600 hover:underline">{bi('เปิดดูตัวอย่าง (อย่างที่ลูกค้าเห็น)', 'Preview (as the customer sees it)')}</a>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // อัปเดตสถานะงานของโครงการ
@@ -1609,6 +1635,7 @@ export default function QuotationSystem() {
     return (
       <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
         <PaymentsModal />
+        <ShareLinkModal />
         <TxnModal />
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap');
@@ -1748,7 +1775,7 @@ export default function QuotationSystem() {
                         <div className="flex justify-center gap-1">
                           <button onClick={() => setPaymentQ(q)} className="p-2 hover:bg-emerald-100 rounded text-emerald-700" title={t('payTitle')}><TrendingUp size={16} /></button>
                           <button onClick={() => previewQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipView')}><Eye size={16} /></button>
-                          <button onClick={() => copyShareLink(q)} className="p-2 hover:bg-blue-100 rounded text-blue-600" title={bi('คัดลอกลิงก์ส่งลูกค้า', 'Copy link for customer')}><Share2 size={16} /></button>
+                          <button onClick={() => { setLinkCopied(false); setShareLinkQ(q); }} className="p-2 hover:bg-blue-100 rounded text-blue-600" title={bi('ลิงก์ส่งลูกค้า', 'Share link')}><Share2 size={16} /></button>
                           <button onClick={() => duplicateQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipCopy')}><Copy size={16} /></button>
                           <button onClick={() => editQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipEdit')}><FileText size={16} /></button>
                           <button onClick={() => deleteQuotation(q.id)} className="p-2 hover:bg-red-100 rounded text-red-600" title={t('tipDelete')}><Trash2 size={16} /></button>
