@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Plus, Trash2, Save, ArrowLeft, Printer, Search, Copy, Eye, Calculator, Info, QrCode, Settings, Wallet, TrendingUp, TrendingDown, Calendar, X, Paperclip, Download } from 'lucide-react';
+import { FileText, Plus, Trash2, Save, ArrowLeft, Printer, Search, Copy, Eye, Calculator, Info, QrCode, Settings, Wallet, TrendingUp, TrendingDown, Calendar, X, Paperclip, Download, Share2 } from 'lucide-react';
 import { cloudStorage } from './supabase';
 
 // ===== QR Code PromptPay สแควร์วัน อินสเปคเตอร์ =====
@@ -294,6 +294,11 @@ export default function QuotationSystem() {
   const [txnSort, setTxnSort] = useState('dateDesc'); // dateDesc | dateAsc | amountDesc
   const [paymentQ, setPaymentQ] = useState(null); // โครงการที่กำลังจัดการรับเงินรายงวด
   const [onlyOwing, setOnlyOwing] = useState(false); // กรองเฉพาะที่ยังค้างรับ (ไว้ตามเก็บเงิน)
+  // ===== โหมดแชร์ลิงก์ให้ลูกค้า (?q=<id>) =====
+  const shareId = (() => { try { return new URLSearchParams(window.location.search).get('q'); } catch { return null; } })();
+  const shareMode = !!shareId;
+  const [shareLoaded, setShareLoaded] = useState(false);
+  const [shareNotFound, setShareNotFound] = useState(false);
   // ===== ล็อกด้วยรหัสผ่าน =====
   const [unlocked, setUnlocked] = useState(() => { try { return sessionStorage.getItem('sq_unlocked') === '1'; } catch { return false; } });
   const [pwInput, setPwInput] = useState('');
@@ -427,6 +432,19 @@ export default function QuotationSystem() {
       setLoading(false);
     };
     loadData();
+  }, []);
+
+  // โหลดใบเสนอราคาที่แชร์มา (จากลิงก์ ?q=<id>) แล้วแสดงหน้าพรีวิวอย่างเดียว
+  useEffect(() => {
+    if (!shareId) return;
+    (async () => {
+      try {
+        const r = await window.storage.get('quotation:' + shareId);
+        if (r) { setForm({ ...getDefaultForm(), ...JSON.parse(r.value) }); setView('preview'); }
+        else setShareNotFound(true);
+      } catch (e) { console.error(e); setShareNotFound(true); }
+      setShareLoaded(true);
+    })();
   }, []);
 
   // ย้ายข้อมูลใบเสนอราคา + ตั้งค่า ที่เคยเก็บในเครื่องนี้ (ระบบเก่า) ขึ้นคลาวด์ — กดครั้งเดียว
@@ -696,6 +714,17 @@ export default function QuotationSystem() {
       await window.storage.delete(`quotation:${id}`);
       setQuotations(quotations.filter(q => q.id !== id));
     } catch (e) { console.error(e); }
+  };
+
+  // คัดลอกลิงก์ใบเสนอราคาสำหรับส่งให้ลูกค้า
+  const copyShareLink = async (q) => {
+    const url = `${window.location.origin}${window.location.pathname}?q=${q.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      alert(bi('คัดลอกลิงก์แล้ว — ส่งให้ลูกค้าได้เลย\n\n', 'Link copied — send it to your customer\n\n') + url);
+    } catch {
+      window.prompt(bi('คัดลอกลิงก์นี้ส่งให้ลูกค้า:', 'Copy this link for your customer:'), url);
+    }
   };
 
   // อัปเดตสถานะงานของโครงการ
@@ -1150,12 +1179,30 @@ export default function QuotationSystem() {
     );
   };
 
-  // ===== ด่านรหัสผ่าน — แสดงก่อนเข้าแอปเมื่อมีการตั้งรหัสไว้ =====
+  // ===== โหมดแชร์ลิงก์: ลูกค้าเปิดลิงก์เห็นใบเสนอราคาอย่างเดียว (ข้ามด่านรหัส/รายการ) =====
+  if (shareMode && !shareLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-100" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap'); * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }`}</style>
+        <p className="text-stone-500">{bi('กำลังโหลดใบเสนอราคา…', 'Loading quotation…')}</p>
+      </div>
+    );
+  }
+  if (shareMode && shareNotFound) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-100 p-6 text-center" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap'); * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }`}</style>
+        <p className="text-stone-500">{bi('ไม่พบใบเสนอราคานี้ (อาจถูกลบไปแล้ว)', 'Quotation not found (it may have been deleted)')}</p>
+      </div>
+    );
+  }
+
+  // ===== ด่านรหัสผ่าน — แสดงก่อนเข้าแอปเมื่อมีการตั้งรหัสไว้ (ข้ามในโหมดแชร์) =====
   const tryUnlock = () => {
     if (pwInput === (settings.appPassword || '')) { setUnlocked(true); setPwError(false); try { sessionStorage.setItem('sq_unlocked', '1'); } catch { /* ignore */ } }
     else setPwError(true);
   };
-  if (settings.appPassword && !unlocked) {
+  if (settings.appPassword && !unlocked && !shareMode) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap'); * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }`}</style>
@@ -1378,15 +1425,17 @@ export default function QuotationSystem() {
         `}</style>
         <div className="no-print sticky top-0 bg-white border-b border-stone-300 shadow-sm z-10">
           <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-            <button onClick={() => setView('list')} className="flex items-center gap-2 px-4 py-2 text-stone-700 hover:bg-stone-100 rounded-lg">
-              <ArrowLeft size={18} /> กลับ
-            </button>
+            {shareMode
+              ? <div className="font-semibold text-stone-700">{bi('ใบเสนอราคา', 'Quotation')} {form.quotationNo || ''}</div>
+              : <button onClick={() => setView('list')} className="flex items-center gap-2 px-4 py-2 text-stone-700 hover:bg-stone-100 rounded-lg"><ArrowLeft size={18} /> {bi('กลับ', 'Back')}</button>}
             <div className="flex gap-2">
-              <button onClick={() => setView('create')} className="flex items-center gap-2 px-4 py-2 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-lg">
-                <FileText size={18} /> แก้ไข
-              </button>
+              {!shareMode && (
+                <button onClick={() => setView('create')} className="flex items-center gap-2 px-4 py-2 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-lg">
+                  <FileText size={18} /> {bi('แก้ไข', 'Edit')}
+                </button>
+              )}
               <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg">
-                <Printer size={18} /> พิมพ์ / PDF
+                <Printer size={18} /> {bi('พิมพ์ / PDF', 'Print / PDF')}
               </button>
             </div>
           </div>
@@ -1699,6 +1748,7 @@ export default function QuotationSystem() {
                         <div className="flex justify-center gap-1">
                           <button onClick={() => setPaymentQ(q)} className="p-2 hover:bg-emerald-100 rounded text-emerald-700" title={t('payTitle')}><TrendingUp size={16} /></button>
                           <button onClick={() => previewQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipView')}><Eye size={16} /></button>
+                          <button onClick={() => copyShareLink(q)} className="p-2 hover:bg-blue-100 rounded text-blue-600" title={bi('คัดลอกลิงก์ส่งลูกค้า', 'Copy link for customer')}><Share2 size={16} /></button>
                           <button onClick={() => duplicateQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipCopy')}><Copy size={16} /></button>
                           <button onClick={() => editQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipEdit')}><FileText size={16} /></button>
                           <button onClick={() => deleteQuotation(q.id)} className="p-2 hover:bg-red-100 rounded text-red-600" title={t('tipDelete')}><Trash2 size={16} /></button>
