@@ -1714,8 +1714,8 @@ export default function QuotationSystem() {
               )}
             </div>
           ) : (
-            <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-              <table className="w-full">
+            <div className="bg-white border border-stone-200 rounded-lg overflow-x-auto">
+              <table className="w-full min-w-[640px]">
                 <thead className="bg-stone-50 border-b border-stone-200">
                   <tr>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700">{t('cNo')}</th>
