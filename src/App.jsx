@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FileText, Plus, Trash2, Save, ArrowLeft, Printer, Search, Copy, Eye, Calculator, Info, QrCode, Settings, Wallet, TrendingUp, TrendingDown, Calendar, X, Paperclip, Download, Share2 } from 'lucide-react';
 import { cloudStorage } from './supabase';
 
@@ -301,6 +301,10 @@ export default function QuotationSystem() {
   const shareMode = !!shareId;
   const [shareLoaded, setShareLoaded] = useState(false);
   const [shareNotFound, setShareNotFound] = useState(false);
+  // ===== ย่อหน้าใบเสนอราคาให้พอดีจอ (แสดงผลเหมือน A4/PDF เป๊ะ) =====
+  const a4WrapRef = useRef(null);
+  const a4PageRef = useRef(null);
+  const [a4Box, setA4Box] = useState({ scale: 1, height: undefined });
   // ===== ล็อกด้วยรหัสผ่าน =====
   const [unlocked, setUnlocked] = useState(() => { try { return sessionStorage.getItem('sq_unlocked') === '1'; } catch { return false; } });
   const [pwInput, setPwInput] = useState('');
@@ -448,6 +452,28 @@ export default function QuotationSystem() {
       setShareLoaded(true);
     })();
   }, []);
+
+  // ย่อใบเสนอราคา (กว้าง A4 = 210mm) ให้พอดีความกว้างจอ เพื่อให้บนลิงก์เห็นทั้งหน้าเหมือน PDF
+  useEffect(() => {
+    if (view !== 'preview') return;
+    const fit = () => {
+      const wrap = a4WrapRef.current, page = a4PageRef.current;
+      if (!wrap || !page) return;
+      const pageW = 794; // 210mm ที่ 96dpi
+      const s = Math.min(1, wrap.clientWidth / pageW);
+      setA4Box({ scale: s, height: page.offsetHeight * s });
+    };
+    fit();
+    const t1 = setTimeout(fit, 300); // เผื่อฟอนต์โหลดเสร็จแล้ว reflow
+    let ro;
+    try {
+      ro = new ResizeObserver(fit);
+      if (a4WrapRef.current) ro.observe(a4WrapRef.current);
+      if (a4PageRef.current) ro.observe(a4PageRef.current);
+    } catch { /* ignore */ }
+    window.addEventListener('resize', fit);
+    return () => { clearTimeout(t1); if (ro) ro.disconnect(); window.removeEventListener('resize', fit); };
+  }, [view, shareLoaded, form]);
 
   // ย้ายข้อมูลใบเสนอราคา + ตั้งค่า ที่เคยเก็บในเครื่องนี้ (ระบบเก่า) ขึ้นคลาวด์ — กดครั้งเดียว
   const migrateLocalToCloud = async () => {
@@ -1445,7 +1471,8 @@ export default function QuotationSystem() {
           }
           @media print {
             .no-print { display: none !important; }
-            .print-page { box-shadow: none !important; margin: 0 !important; padding: 15mm !important; max-width: none !important; border: none !important; }
+            .a4-fit-wrap, .a4-center { height: auto !important; width: auto !important; overflow: visible !important; margin: 0 !important; padding: 0 !important; }
+            .print-page { box-shadow: none !important; margin: 0 !important; padding: 15mm !important; max-width: none !important; border: none !important; transform: none !important; width: auto !important; min-height: 0 !important; }
             @page { size: A4; margin: 0; }
           }
         `}</style>
@@ -1467,7 +1494,9 @@ export default function QuotationSystem() {
           </div>
         </div>
 
-        <div className="print-page quotation-doc max-w-4xl mx-auto bg-white my-8 shadow-lg p-12 border border-stone-300">
+        <div ref={a4WrapRef} className="a4-fit-wrap px-2 sm:px-4 my-6">
+        <div className="a4-center mx-auto" style={{ width: 794 * a4Box.scale, height: a4Box.height, overflow: 'hidden' }}>
+        <div ref={a4PageRef} className="print-page quotation-doc bg-white shadow-lg border border-stone-300" style={{ width: '210mm', minHeight: '297mm', padding: '15mm', transform: `scale(${a4Box.scale})`, transformOrigin: 'top left' }}>
           <div className="flex items-center gap-3 pb-4 border-b-2 border-stone-800">
             <div className="flex-shrink-0" style={{ width: '72px' }}>
               <img src={COMPANY_LOGO} alt="Square One Inspector" className="w-full h-auto block" />
@@ -1616,6 +1645,8 @@ export default function QuotationSystem() {
               <p className="text-stone-700 italic">SQUAREONE DESIGN AND INSPECTOR</p>
             </div>
           </div>
+        </div>
+        </div>
         </div>
       </div>
     );
