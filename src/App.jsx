@@ -1683,7 +1683,7 @@ export default function QuotationSystem() {
               {/* ฝั่งซ้าย: หมายเหตุและงวดงาน */}
               <div className="flex-1">
                 <p className="font-bold underline mb-2">{dl('หมายเหตุ / Notes', 'Notes')}</p>
-                <p className="mb-3">1. {dl('โอนผ่านบัญชีธนาคาร', 'Bank transfer:')} {(() => {
+                <p className="mb-3">1. {dl('โอนผ่านบัญชีธนาคาร', 'Bank transfer:')}<br />{(() => {
                   const bi = form.bankInfo || '';
                   if (en) return <strong>{tv(bi)}</strong>;
                   const i = bi.indexOf('เลขที่บัญชี');
