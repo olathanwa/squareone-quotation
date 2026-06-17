@@ -821,6 +821,7 @@ export default function QuotationSystem() {
       await window.storage.set(`quotation:${id}`, JSON.stringify(data));
       if (editingId) setQuotations(quotations.map(q => q.id === id ? data : q));
       else setQuotations([data, ...quotations]);
+      setEditingId(id); // จำ id ที่บันทึก เพื่อให้หน้า preview สร้างลิงก์ส่งลูกค้าได้
       alert('บันทึกเรียบร้อย / Saved successfully');
       setView('preview');
     } catch (e) {
@@ -845,6 +846,16 @@ export default function QuotationSystem() {
     const el = document.getElementById('sharelink-input');
     if (el) { el.focus(); el.select(); try { document.execCommand('copy'); } catch { /* ignore */ } } // คัดลอกแบบ sync
     if (navigator.clipboard) { try { navigator.clipboard.writeText(url).catch(() => {}); } catch { /* ignore */ } } // เผื่อรองรับ
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+  // คัดลอกลิงก์จากหน้า preview (ใช้ id ของใบที่กำลังดู/เพิ่งบันทึก)
+  const copyPreviewLink = () => {
+    if (!editingId) return;
+    const url = shareUrl({ id: editingId });
+    const el = document.getElementById('preview-sharelink');
+    if (el) { el.focus(); el.select(); try { document.execCommand('copy'); } catch { /* ignore */ } }
+    if (navigator.clipboard) { try { navigator.clipboard.writeText(url).catch(() => {}); } catch { /* ignore */ } }
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
   };
@@ -1638,6 +1649,21 @@ export default function QuotationSystem() {
           </div>
         </div>
 
+        {!shareMode && editingId && (
+          <div className="no-print max-w-4xl mx-auto px-4 mt-5">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <p className="font-semibold text-blue-900 flex items-center gap-2 mb-2"><Share2 size={18} /> {bi('ลิงก์ส่งให้ลูกค้า', 'Customer link')}</p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input id="preview-sharelink" readOnly value={shareUrl({ id: editingId })} onClick={(e) => e.target.select()} className="flex-1 min-w-0 px-3 py-3 border border-blue-200 rounded-lg bg-white text-sm font-mono text-stone-700" />
+                <button onClick={copyPreviewLink} className={`flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-bold text-white whitespace-nowrap text-base ${linkCopied ? 'bg-emerald-600' : 'bg-emerald-700 hover:bg-emerald-800'}`}>
+                  {linkCopied ? <>✓ {bi('คัดลอกแล้ว', 'Copied')}</> : <><Copy size={20} /> {bi('คัดลอกลิงก์', 'Copy link')}</>}
+                </button>
+              </div>
+              <p className="text-xs text-blue-700 mt-2">{bi('ส่งลิงก์นี้ให้ลูกค้าเปิดดู/พิมพ์ใบเสนอราคาได้ (อ่านอย่างเดียว ไม่ต้องใส่รหัส)', 'Send this link to your customer — read-only, no password needed')}</p>
+            </div>
+          </div>
+        )}
+
         <div ref={a4WrapRef} className="a4-fit-wrap px-2 sm:px-4 my-6">
         <div className="a4-center mx-auto" style={{ width: 794 * a4Box.scale, height: a4Box.height, overflow: 'hidden' }}>
         <div ref={a4PageRef} className="print-page quotation-doc bg-white shadow-lg border border-stone-300" style={{ width: '210mm', minHeight: '297mm', padding: '15mm', transform: `scale(${a4Box.scale})`, transformOrigin: 'top left' }}>
@@ -1749,11 +1775,11 @@ export default function QuotationSystem() {
               <div className="flex-1">
                 <p className="font-bold underline mb-2">{dl('หมายเหตุ / Notes', 'Notes')}</p>
                 <p className="mb-3">1. {dl('โอนผ่านบัญชีธนาคาร', 'Bank transfer:')}<br />{(() => {
-                  const bi = form.bankInfo || '';
-                  if (en) return <strong>{tv(bi)}</strong>;
-                  const i = bi.indexOf('เลขที่บัญชี');
-                  if (i === -1) return <strong>{bi}</strong>;
-                  return <><strong>{bi.slice(0, i).trim()}</strong><br /><strong>{bi.slice(i)}</strong></>;
+                  const raw = form.bankInfo || '';
+                  if (en) return <strong>{tv(raw)}</strong>;
+                  // แยกเป็นบรรทัด: ชื่อธนาคาร / ชื่อบัญชี / เลขที่บัญชี
+                  const lines = raw.replace(/\s*(ชื่อบัญชี)/, '\n$1').replace(/\s*(เลขที่บัญชี)/, '\n$1').split('\n').map((s) => s.trim()).filter(Boolean);
+                  return lines.map((ln, i) => <React.Fragment key={i}>{i > 0 && <br />}<strong>{ln}</strong></React.Fragment>);
                 })()}</p>
                 <div className="mb-3">
                   <p>2. {dl('งวดงานแบ่งดังนี้ / Payment installments:', 'Payment installments:')}</p>
@@ -1930,9 +1956,10 @@ export default function QuotationSystem() {
                     const st = qStatus(q);
                     return (
                     <tr key={q.id} className="border-b border-stone-100 hover:bg-stone-50">
-                      <td className="px-4 py-3 font-mono text-sm">{q.quotationNo}</td>
+                      <td className="px-4 py-3 font-mono text-sm whitespace-nowrap" title={q.quotationNo}>#{(() => { const s = String(q.quotationNo || ''); const i = s.lastIndexOf('-'); return i === -1 ? s : s.slice(i + 1); })()}</td>
                       <td className="px-4 py-3 font-semibold">
                         {q.customerName}
+                        {q.project && <div className="md:hidden text-xs font-normal text-stone-500 mt-0.5">📋 {q.project}</div>}
                         {(() => { const ws = QSTATUS[q.status] || QSTATUS.open; return <div className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${ws.cls}`}>{lang === 'en' ? ws.en : ws.th}</div>; })()}
                       </td>
                       <td className="px-4 py-3 text-sm text-stone-600 hidden md:table-cell max-w-xs truncate">{q.project}</td>
