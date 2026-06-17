@@ -151,7 +151,7 @@ const T = {
     cancel: 'ยกเลิก', save: 'บันทึก', yearWord: 'ปี',
     filterAll: 'ทั้งหมด', sortNewest: 'ล่าสุดก่อน', sortOldest: 'เก่าสุดก่อน', sortHighest: 'ยอดมากสุด',
     exportCsv: 'ส่งออก Excel', printReport: 'พิมพ์รายงาน', sortBy: 'เรียงโดย',
-    payTitle: 'รับเงินรายงวด', confirmReceived: 'ยืนยันรับเงิน', receivedBadge: 'รับแล้ว', receiptBtn: 'ใบเสร็จ',
+    payTitle: 'รับเงินรายงวด', confirmReceived: 'ยืนยันรับเงิน', receivedBadge: 'รับแล้ว', receiptBtn: 'ใบเสร็จ', billBtn: 'ใบวางบิล',
     noInstallments: 'ใบนี้ยังไม่มีงวดงาน — เพิ่มงวดในหน้าแก้ไขก่อน', paidOn: 'รับเมื่อ', hasSlip: 'มีสลิป', close: 'ปิด', paySummary: 'รับแล้ว',
     statusLabel: 'สถานะงาน', onlyOwing: 'เฉพาะค้างรับ',
   },
@@ -185,7 +185,7 @@ const T = {
     cancel: 'Cancel', save: 'Save', yearWord: 'Year',
     filterAll: 'All', sortNewest: 'Newest first', sortOldest: 'Oldest first', sortHighest: 'Highest amount',
     exportCsv: 'Export Excel', printReport: 'Print report', sortBy: 'Sort by',
-    payTitle: 'Installment Payments', confirmReceived: 'Confirm received', receivedBadge: 'Received', receiptBtn: 'Receipt',
+    payTitle: 'Installment Payments', confirmReceived: 'Confirm received', receivedBadge: 'Received', receiptBtn: 'Receipt', billBtn: 'Invoice',
     noInstallments: 'No installments yet — add them in Edit first', paidOn: 'Received on', hasSlip: 'Slip', close: 'Close', paySummary: 'Received',
     statusLabel: 'Job status', onlyOwing: 'Outstanding only',
   },
@@ -286,6 +286,50 @@ ${amountWords ? `<tr><td colspan="2" style="text-align:right;font-style:italic">
 <p style="margin-top:10px"><b>${L.method}:</b> ${esc(method || '-')}</p>
 ${slip ? `<div style="margin-top:10px"><div class="muted">${L.slip}</div><img src="${slip}" style="max-width:280px;max-height:360px;border:1px solid #ccc;border-radius:6px;margin-top:6px"/></div>` : ''}
 <div class="sign"><div>........................................<br>${L.received}</div><div>........................................<br>${L.date}</div></div>
+</body></html>`;
+};
+
+// ใบวางบิล/วางบิลรายงวด (ขอเก็บเงินก่อนชำระ) — พิมพ์ได้ กระดาษขาว
+const buildBillHTML = ({ company, customer, customerAddress, project, quotationNo, billNo, itemName, amount, amountWords, dateStr, bankInfo, showQR, lang }) => {
+  const en = lang === 'en';
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+  const n2 = (n) => (Number(n) || 0).toLocaleString('th-TH');
+  const L = en
+    ? { title: 'Invoice', subtitle: 'INVOICE / BILLING NOTE', billNo: 'Invoice No.', date: 'Date', customer: 'Bill to', project: 'Project', ref: 'Quotation Ref.', item: 'Description', amount: 'Amount (THB)', total: 'Total', pay: 'Payment details', note: 'Please make payment as detailed above.', issuer: 'Issued by', receiver: 'Received by', print: 'Print / Save PDF' }
+    : { title: 'ใบวางบิล', subtitle: 'ใบวางบิล / INVOICE', billNo: 'เลขที่ใบวางบิล', date: 'วันที่', customer: 'วางบิลถึง', project: 'โครงการ', ref: 'อ้างอิงใบเสนอราคา', item: 'รายการ', amount: 'จำนวนเงิน (บาท)', total: 'รวมเป็นเงิน', pay: 'รายละเอียดการชำระเงิน', note: 'กรุณาชำระเงินตามรายละเอียดข้างต้น', issuer: 'ผู้วางบิล', receiver: 'ผู้รับวางบิล', print: 'พิมพ์ / บันทึก PDF' };
+  return `<!doctype html><html lang="${en ? 'en' : 'th'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${L.title} ${esc(billNo)}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap');
+body{font-family:'Sarabun',-apple-system,'Segoe UI',Tahoma,sans-serif;color:#1B2430;max-width:720px;margin:0 auto;padding:30px 26px;line-height:1.5}
+.head{text-align:center;border-bottom:2px solid #1B2430;padding-bottom:10px}.head h1{font-size:18px;margin:0}.muted{color:#667;font-size:13px}
+h2{text-align:center;font-size:20px;margin:16px 0}
+table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}th,td{border:1px solid #1B2430;padding:8px 10px}th{background:#f1efe9}
+.info{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}.info td{border:1px solid #1B2430;padding:8px 10px}
+.tot{font-size:18px;font-weight:700;color:#0f766e}
+.pay{margin-top:14px;border:1px solid #1B2430;border-radius:6px;padding:10px 12px;display:flex;gap:12px;align-items:center}
+.pay .qr{width:150px;height:auto;flex-shrink:0}
+.btn{position:fixed;top:14px;right:14px;background:#0f766e;color:#fff;border:none;padding:10px 16px;border-radius:8px;cursor:pointer}@media print{.btn{display:none}}
+.sign{margin-top:48px;display:flex;justify-content:space-between;color:#667}
+</style></head>
+<body><button class="btn" onclick="window.print()">${L.print}</button>
+<div class="head"><img src="${COMPANY_LOGO}" alt="logo" style="height:58px;width:auto;display:block;margin:0 auto 6px"/><h1>${esc(company.name || 'SquareOne')}</h1><div class="muted">${esc(company.address || '')}</div><div class="muted">${company.phone ? 'โทร: ' + esc(company.phone) : ''}${company.taxId ? '　เลขภาษี ' + esc(company.taxId) : ''}</div></div>
+<h2>${L.subtitle}</h2>
+<table class="info"><tbody>
+<tr><td style="background:#f1efe9;font-weight:600;width:130px">${L.billNo}</td><td>${esc(billNo)}</td><td style="background:#f1efe9;font-weight:600;width:110px">${L.date}</td><td>${esc(dateStr)}</td></tr>
+<tr><td style="background:#f1efe9;font-weight:600">${L.customer}</td><td>${esc(customer || '-')}</td><td style="background:#f1efe9;font-weight:600">${L.ref}</td><td>${esc(quotationNo || '-')}</td></tr>
+${customerAddress ? `<tr><td style="background:#f1efe9;font-weight:600">${en ? 'Address' : 'ที่อยู่'}</td><td colspan="3">${esc(customerAddress)}</td></tr>` : ''}
+<tr><td style="background:#f1efe9;font-weight:600">${L.project}</td><td colspan="3">${esc(project || '-')}</td></tr>
+</tbody></table>
+<table><thead><tr><th>${L.item}</th><th style="text-align:right;width:150px">${L.amount}</th></tr></thead>
+<tbody><tr><td>${esc(itemName || '-')}</td><td style="text-align:right">${n2(amount)}</td></tr>
+<tr><td style="text-align:right;font-weight:700">${L.total}</td><td style="text-align:right"><span class="tot">${n2(amount)}</span></td></tr>
+${amountWords ? `<tr><td colspan="2" style="text-align:right;font-style:italic">(${esc(amountWords)})</td></tr>` : ''}
+</tbody></table>
+<div class="pay">
+  ${showQR ? `<img class="qr" src="${QR_CODE_DATA}" alt="Thai QR Payment"/>` : ''}
+  <div><div style="font-weight:700;margin-bottom:4px">${L.pay}</div>${bankInfo ? `<div>${esc(bankInfo)}</div>` : ''}<div class="muted" style="margin-top:6px">${L.note}</div></div>
+</div>
+<div class="sign"><div>........................................<br>${L.issuer}</div><div>........................................<br>${L.receiver}</div></div>
 </body></html>`;
 };
 
@@ -914,6 +958,21 @@ export default function QuotationSystem() {
     else downloadFile(html, `ใบเสร็จ_${q.quotationNo || 'RC'}.html`, 'text/html;charset=utf-8');
   };
 
+  // ออกใบวางบิลของงวด (ขอเก็บเงินก่อนชำระ)
+  const printBillForInstallment = (q, inst, idx) => {
+    const amt = Number(inst.amount) || 0;
+    const html = buildBillHTML({
+      company: { name: q.companyName || settings.companyName, address: q.companyAddress || settings.companyAddress, phone: q.companyPhone || settings.companyPhone, taxId: q.companyTaxId || settings.companyTaxId },
+      customer: q.customerName, customerAddress: q.address, project: q.project, quotationNo: q.quotationNo,
+      billNo: `${q.quotationNo || 'INV'}-B${idx + 1}`,
+      itemName: inst.name, amount: amt, amountWords: numberToThaiWords(amt),
+      dateStr: formatDate(new Date().toISOString().slice(0, 10)), bankInfo: q.bankInfo, showQR: q.showQR !== false, lang,
+    });
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+    else downloadFile(html, `ใบวางบิล_${q.quotationNo || 'INV'}.html`, 'text/html;charset=utf-8');
+  };
+
   // โมดัลรับเงินรายงวดของแต่ละโครงการ
   const PaymentsModal = () => {
     if (!paymentQ) return null;
@@ -959,11 +1018,15 @@ export default function QuotationSystem() {
                       <div className="text-xs text-stone-500 min-w-0 truncate">{t('paidOn')} {txn.date} · {txn.method}</div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {txn.slip && <img src={txn.slip} alt="slip" className="w-9 h-9 rounded object-cover border border-stone-200" />}
+                        <button onClick={() => printBillForInstallment(q, inst, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-stone-300 text-stone-700 rounded-lg text-sm whitespace-nowrap"><FileText size={14} /> {t('billBtn')}</button>
                         <button onClick={() => printReceiptForInstallment(q, inst, txn, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-slate-900 text-amber-200 rounded-lg text-sm whitespace-nowrap"><Printer size={14} /> {t('receiptBtn')}</button>
                       </div>
                     </div>
                   ) : (
-                    <button onClick={() => setTxnForm({ ...newTxn('in'), quotationId: q.id, quotationLabel: label, installment: inst.name, amount: inst.amount || '' })} className="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold"><TrendingUp size={16} /> {t('confirmReceived')}</button>
+                    <div className="mt-2 flex gap-2">
+                      <button onClick={() => printBillForInstallment(q, inst, idx)} className="flex items-center justify-center gap-1 px-4 py-2.5 bg-white border border-stone-300 text-stone-700 rounded-lg font-medium whitespace-nowrap"><FileText size={16} /> {t('billBtn')}</button>
+                      <button onClick={() => setTxnForm({ ...newTxn('in'), quotationId: q.id, quotationLabel: label, installment: inst.name, amount: inst.amount || '' })} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold"><TrendingUp size={16} /> {t('confirmReceived')}</button>
+                    </div>
                   )}
                 </div>
               );
