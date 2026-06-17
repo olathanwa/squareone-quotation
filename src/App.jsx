@@ -131,7 +131,7 @@ const T = {
     cStatus: 'สถานะ', stPaid: 'จ่ายครบ', stPartial: 'จ่ายบางส่วน', stUnpaid: 'ยังไม่จ่าย', tipReceive: 'รับเงิน',
     loading: 'กำลังโหลด...', emptySearch: 'ไม่พบใบเสนอราคาที่ค้นหา', emptyNone: 'ยังไม่มีใบเสนอราคา เริ่มสร้างใบแรกได้เลย',
     createQuote: 'สร้างใบเสนอราคา',
-    cNo: 'เลขที่', cCustomer: 'ลูกค้า', cAddress: 'ที่อยู่', cDate: 'วันที่', cTotal: 'รวม', cManage: 'จัดการ',
+    cNo: 'เลขที่', cCustomer: 'ลูกค้า', cAddress: 'ที่อยู่', cProject: 'โครงการที่ตรวจ', cDate: 'วันที่', cTotal: 'รวม', cManage: 'จัดการ',
     tipView: 'ดู', tipCopy: 'คัดลอก', tipEdit: 'แก้ไข', tipDelete: 'ลบ',
     migTitle: (n) => `พบใบเสนอราคาเดิมในเครื่องนี้ ${n} ใบ ที่ยังไม่ได้อยู่บนคลาวด์`,
     migDesc: 'กดย้ายขึ้นคลาวด์ครั้งเดียว เพื่อให้เปิดจากเครื่องไหนก็เห็นข้อมูลชุดเดียวกัน (ข้อมูลเดิมไม่หาย)',
@@ -165,7 +165,7 @@ const T = {
     cStatus: 'Status', stPaid: 'Paid', stPartial: 'Partial', stUnpaid: 'Unpaid', tipReceive: 'Receive payment',
     loading: 'Loading...', emptySearch: 'No matching quotations', emptyNone: 'No quotations yet. Create your first one!',
     createQuote: 'Create Quotation',
-    cNo: 'No.', cCustomer: 'Customer', cAddress: 'Address', cDate: 'Date', cTotal: 'Total', cManage: 'Actions',
+    cNo: 'No.', cCustomer: 'Customer', cAddress: 'Address', cProject: 'Inspected project', cDate: 'Date', cTotal: 'Total', cManage: 'Actions',
     tipView: 'View', tipCopy: 'Duplicate', tipEdit: 'Edit', tipDelete: 'Delete',
     migTitle: (n) => `Found ${n} quotation(s) on this device not yet on the cloud`,
     migDesc: 'Move them to the cloud once so every device shows the same data (existing data stays safe).',
@@ -415,7 +415,7 @@ export default function QuotationSystem() {
   const getDefaultForm = () => ({
     quotationNo: '',
     date: new Date().toISOString().split('T')[0],
-    project: 'ตรวจสอบบ้าน',
+    project: '',
     customerName: '',
     address: '',
     paymentMethod: 'โอน',
@@ -703,7 +703,8 @@ export default function QuotationSystem() {
 
   const autoCalculateInstallments = (total) => {
     if (!total || total <= 0) return [{ name: 'มัดจำและกำหนดวันตรวจ', amount: 0 }, { name: 'เมื่อส่งรายงานการตรวจรอบที่ 1 เสร็จ', amount: 0 }];
-    const deposit = Math.round(total * 0.3 / 500) * 500;
+    // ยอด 5,000 บาท ใช้งวดคงที่ตามที่กำหนด (งวดแรก 2,000 / งวดสอง 3,000)
+    const deposit = total === 5000 ? 2000 : Math.round(total * 0.3 / 500) * 500;
     return [
       { name: 'มัดจำและกำหนดวันตรวจ', amount: deposit },
       { name: 'เมื่อส่งรายงานการตรวจรอบที่ 1 เสร็จ', amount: total - deposit },
@@ -1040,9 +1041,10 @@ export default function QuotationSystem() {
     );
   };
 
-  const filteredQuotations = quotations.filter(q => 
+  const filteredQuotations = quotations.filter(q =>
     q.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     q.quotationNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    q.project?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     q.address?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -1916,7 +1918,7 @@ export default function QuotationSystem() {
                   <tr>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700">{t('cNo')}</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700">{t('cCustomer')}</th>
-                    <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700 hidden md:table-cell">{t('cAddress')}</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700 hidden md:table-cell">{t('cProject')}</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-stone-700 hidden sm:table-cell">{t('cDate')}</th>
                     <th className="text-right px-4 py-3 text-sm font-semibold text-stone-700">{t('cTotal')}</th>
                     <th className="text-center px-4 py-3 text-sm font-semibold text-stone-700">{t('cStatus')}</th>
@@ -1933,7 +1935,7 @@ export default function QuotationSystem() {
                         {q.customerName}
                         {(() => { const ws = QSTATUS[q.status] || QSTATUS.open; return <div className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${ws.cls}`}>{lang === 'en' ? ws.en : ws.th}</div>; })()}
                       </td>
-                      <td className="px-4 py-3 text-sm text-stone-600 hidden md:table-cell max-w-xs truncate">{q.address}</td>
+                      <td className="px-4 py-3 text-sm text-stone-600 hidden md:table-cell max-w-xs truncate">{q.project}</td>
                       <td className="px-4 py-3 text-sm text-stone-600 hidden sm:table-cell">{formatDate(q.date)}</td>
                       <td className="px-4 py-3 text-right font-semibold text-emerald-700">{Number(q.total || 0).toLocaleString('th-TH')} ฿</td>
                       <td className="px-4 py-3 text-center">
@@ -2003,7 +2005,7 @@ export default function QuotationSystem() {
             </div>
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">{bi('โครงการ/อาคารที่ตรวจสอบ', 'Project / Building inspected')}</label>
-              <input type="text" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+              <input type="text" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} placeholder={bi('เช่น ตรวจสอบบ้าน, คอนโด Le Chamonix', 'e.g. House inspection, Le Chamonix condo')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
             </div>
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">{bi('เงื่อนไขการชำระเงิน', 'Payment Terms')}</label>
@@ -2084,7 +2086,7 @@ export default function QuotationSystem() {
 
         <div className="bg-white border border-stone-200 rounded-lg p-6">
           <div className="flex justify-between items-center mb-4 pb-2 border-b border-stone-200">
-            <h3 className="font-semibold text-stone-900">{bi('รายการสินค้า', 'Items')}</h3>
+            <h3 className="font-semibold text-stone-900">{bi('รายการตรวจสอบ', 'Inspection items')}</h3>
             <button onClick={addItem} className="flex items-center gap-1 px-3 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded text-sm">
               <Plus size={14} /> {bi('เพิ่มรายการ', 'Add item')}
             </button>
