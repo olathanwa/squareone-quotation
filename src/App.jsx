@@ -1998,6 +1998,12 @@ export default function QuotationSystem() {
     quotations.forEach((q) => { const nm = (q.customerName || '').trim(); if (nm) m.set(nm, { name: q.customerName, address: q.address || '' }); });
     return [...m.values()].sort((a, b) => a.name.localeCompare(b.name, 'th'));
   })();
+  // ชื่อโครงการเดิมที่เคยใช้ (ไว้เลือกซ้ำได้)
+  const pastProjects = (() => {
+    const s = new Set();
+    quotations.forEach((q) => { const p = (q.project || '').trim(); if (p) s.add(p); });
+    return [...s].sort((a, b) => a.localeCompare(b, 'th'));
+  })();
   
   return (
     <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
@@ -2032,7 +2038,9 @@ export default function QuotationSystem() {
             </div>
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">{bi('โครงการ/อาคารที่ตรวจสอบ', 'Project / Building inspected')}</label>
-              <input type="text" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} placeholder={bi('เช่น ตรวจสอบบ้าน, คอนโด Le Chamonix', 'e.g. House inspection, Le Chamonix condo')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+              <input type="text" list="past-projects" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} placeholder={bi('พิมพ์ หรือเลือกโครงการเดิม', 'Type or pick an existing project')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+              <datalist id="past-projects">{pastProjects.map((p, i) => <option key={i} value={p} />)}</datalist>
+              {pastProjects.length > 0 && <p className="text-xs text-stone-400 mt-1">{bi('แตะช่องเพื่อเลือกชื่อโครงการที่เคยใช้', 'Tap the field to pick a previously used project')}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">{bi('เงื่อนไขการชำระเงิน', 'Payment Terms')}</label>
