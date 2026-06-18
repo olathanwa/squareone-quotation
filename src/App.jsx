@@ -421,7 +421,9 @@ export default function QuotationSystem() {
     paymentMethod: 'โอน',
     propertyType: 'house',
     propertyArea: '',
-    items: [], // เริ่มต้นไม่มีรายการ — กด "เพิ่มรายการ" เองทุกครั้ง
+    items: [
+      { description: 'ตรวจสอบบ้าน', subDescription: '', details: [], quantity: 1, unit: 'หลัง', price: 5000, autoCalculated: false },
+    ], // เริ่มต้นมีรายการแรก = ตรวจสอบบ้าน (เพิ่ม/ลบ/แก้ต่อได้)
     travelFee: { enabled: false, route: '', count: 2, pricePerTrip: 1000 },
     installments: [
       { name: 'มัดจำและกำหนดวันตรวจ', amount: 1500 },
