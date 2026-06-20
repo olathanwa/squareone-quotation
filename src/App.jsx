@@ -1007,11 +1007,18 @@ export default function QuotationSystem() {
   const printReceiptTotal = (q) => {
     const qTxns = transactions.filter((t) => t.type === 'in' && t.quotationId === q.id);
     if (!qTxns.length) { alert(lang === 'en' ? 'No payments received yet' : 'ยังไม่มีงวดที่รับเงิน'); return; }
-    const sorted = [...qTxns].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    const rows = sorted.map((t) => ({ name: t.installment || t.quotationLabel || '-', amount: Number(t.amount) || 0, date: formatDate(t.date), method: t.method }));
+    // เรียงตามลำดับงวด (งวด 1 อยู่บนสุด) ไม่ใช่ตามวันที่รับเงิน
+    const ordered = [];
+    const used = new Set();
+    (q.installments || []).forEach((inst) => {
+      const tx = qTxns.find((t) => (t.installment || '').trim() === (inst.name || '').trim() && !used.has(t.id));
+      if (tx) { ordered.push(tx); used.add(tx.id); }
+    });
+    qTxns.forEach((t) => { if (!used.has(t.id)) ordered.push(t); }); // เผื่อรายการที่ไม่ตรงงวด ต่อท้าย
+    const rows = ordered.map((t) => ({ name: t.installment || t.quotationLabel || '-', amount: Number(t.amount) || 0, date: formatDate(t.date), method: t.method }));
     const sum = rows.reduce((s, r) => s + r.amount, 0);
-    const slipsArr = sorted.map((t) => t.slip).filter(Boolean);
-    const latest = sorted.length ? sorted[sorted.length - 1].date : new Date().toISOString().slice(0, 10);
+    const slipsArr = ordered.map((t) => t.slip).filter(Boolean);
+    const latest = [...qTxns].map((t) => t.date).filter(Boolean).sort().slice(-1)[0] || new Date().toISOString().slice(0, 10);
     const html = buildReceiptHTML({
       company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
       receiptNo: `${q.quotationNo || 'RC'}-RT`,
