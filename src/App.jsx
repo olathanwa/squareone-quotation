@@ -151,7 +151,7 @@ const T = {
     cancel: 'ยกเลิก', save: 'บันทึก', yearWord: 'ปี',
     filterAll: 'ทั้งหมด', sortNewest: 'ล่าสุดก่อน', sortOldest: 'เก่าสุดก่อน', sortHighest: 'ยอดมากสุด',
     exportCsv: 'ส่งออก Excel', printReport: 'พิมพ์รายงาน', sortBy: 'เรียงโดย',
-    payTitle: 'รับเงินรายงวด', confirmReceived: 'ยืนยันรับเงิน', receivedBadge: 'รับแล้ว', receiptBtn: 'ใบเสร็จ', billBtn: 'ใบวางบิล',
+    payTitle: 'รับเงินรายงวด', confirmReceived: 'ยืนยันรับเงิน', receivedBadge: 'รับแล้ว', receiptBtn: 'ใบเสร็จงวดนี้', billBtn: 'ใบวางบิล', receiptTotalBtn: 'ใบเสร็จยอดรวม',
     noInstallments: 'ใบนี้ยังไม่มีงวดงาน — เพิ่มงวดในหน้าแก้ไขก่อน', paidOn: 'รับเมื่อ', hasSlip: 'มีสลิป', close: 'ปิด', paySummary: 'รับแล้ว',
     statusLabel: 'สถานะงาน', onlyOwing: 'เฉพาะค้างรับ',
   },
@@ -185,7 +185,7 @@ const T = {
     cancel: 'Cancel', save: 'Save', yearWord: 'Year',
     filterAll: 'All', sortNewest: 'Newest first', sortOldest: 'Oldest first', sortHighest: 'Highest amount',
     exportCsv: 'Export Excel', printReport: 'Print report', sortBy: 'Sort by',
-    payTitle: 'Installment Payments', confirmReceived: 'Confirm received', receivedBadge: 'Received', receiptBtn: 'Receipt', billBtn: 'Invoice',
+    payTitle: 'Installment Payments', confirmReceived: 'Confirm received', receivedBadge: 'Received', receiptBtn: 'Receipt (this)', billBtn: 'Invoice', receiptTotalBtn: 'Total receipt',
     noInstallments: 'No installments yet — add them in Edit first', paidOn: 'Received on', hasSlip: 'Slip', close: 'Close', paySummary: 'Received',
     statusLabel: 'Job status', onlyOwing: 'Outstanding only',
   },
@@ -250,42 +250,70 @@ const buildFinanceReportHTML = ({ companyName, periodLabel, totalIn, totalOut, n
 </body></html>`;
 };
 
-// ใบเสร็จรับเงินรายงวด (พิมพ์ได้ กระดาษขาว)
-const buildReceiptHTML = ({ company, customer, project, quotationNo, receiptNo, itemName, amount, amountWords, dateStr, method, slip, lang }) => {
+// ใบเสร็จรับเงิน (เฉพาะงวด หรือ ยอดรวม) — จัดหน้า A4 พิมพ์ได้
+const buildReceiptHTML = ({ company, customer, project, quotationNo, receiptNo, rows, itemName, amount, amountWords, dateStr, method, slips, slip, lang, kind }) => {
   const en = lang === 'en';
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
   const n2 = (n) => (Number(n) || 0).toLocaleString('th-TH');
   const L = en
-    ? { title: 'Receipt', subtitle: 'RECEIPT', receiptNo: 'Receipt No.', date: 'Date', customer: 'Received from', project: 'Project', ref: 'Quotation Ref.', item: 'Description', amount: 'Amount (THB)', total: 'Total', method: 'Method', slip: 'Transfer slip', received: 'Received by', print: 'Print / Save PDF', thanks: 'Thank you' }
-    : { title: 'ใบเสร็จรับเงิน', subtitle: 'ใบเสร็จรับเงิน / RECEIPT', receiptNo: 'เลขที่ใบเสร็จ', date: 'วันที่รับเงิน', customer: 'ได้รับเงินจาก', project: 'โครงการ', ref: 'อ้างอิงใบเสนอราคา', item: 'รายการ', amount: 'จำนวนเงิน (บาท)', total: 'รวมรับเงิน', method: 'ช่องทางรับเงิน', slip: 'หลักฐานการโอน', received: 'ผู้รับเงิน', print: 'พิมพ์ / บันทึก PDF', thanks: 'ขอบคุณครับ' };
+    ? { title: 'Receipt', subtitle: 'RECEIPT', receiptNo: 'Receipt No.', date: 'Date', customer: 'Received from', project: 'Project', ref: 'Quotation Ref.', no: 'No.', item: 'Description', rdate: 'Date received', method: 'Method', amount: 'Amount (THB)', total: 'Total received', slip: 'Transfer slips', received: 'Received by', issuedDate: 'Date', print: 'Print / Save PDF', perInst: 'Per installment', totalKind: 'All payments received' }
+    : { title: 'ใบเสร็จรับเงิน', subtitle: 'ใบเสร็จรับเงิน / RECEIPT', receiptNo: 'เลขที่ใบเสร็จ', date: 'วันที่', customer: 'ได้รับเงินจาก', project: 'โครงการ', ref: 'อ้างอิงใบเสนอราคา', no: 'ลำดับ', item: 'รายการ', rdate: 'วันที่รับเงิน', method: 'ช่องทาง', amount: 'จำนวนเงิน (บาท)', total: 'รวมรับเงินทั้งสิ้น', slip: 'หลักฐานการโอน', received: 'ผู้รับเงิน', issuedDate: 'วันที่', print: 'พิมพ์ / บันทึก PDF', perInst: 'เฉพาะงวด', totalKind: 'ยอดรวมที่ชำระแล้ว' };
+  const rowsArr = (rows && rows.length) ? rows : [{ name: itemName, amount, date: dateStr, method }];
+  const slipArr = (slips && slips.length) ? slips : (slip ? [slip] : []);
+  const total = (amount != null) ? amount : rowsArr.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const badge = kind === 'total' ? L.totalKind : L.perInst;
+  const bodyRows = rowsArr.map((r, i) => `<tr><td class="c-no">${i + 1}</td><td>${esc(r.name || '-')}</td><td class="c-date">${esc(r.date || dateStr || '-')}</td><td class="c-mtd">${esc(r.method || '-')}</td><td class="c-amt">${n2(r.amount)}</td></tr>`).join('');
   return `<!doctype html><html lang="${en ? 'en' : 'th'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${L.title} ${esc(receiptNo)}</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap');
-body{font-family:'Sarabun',-apple-system,'Segoe UI',Tahoma,sans-serif;color:#1B2430;max-width:720px;margin:0 auto;padding:30px 26px;line-height:1.5}
-.head{text-align:center;border-bottom:2px solid #1B2430;padding-bottom:10px}.head h1{font-size:18px;margin:0}.muted{color:#667;font-size:13px}
-h2{text-align:center;font-size:20px;margin:16px 0}
-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}th,td{border:1px solid #1B2430;padding:8px 10px}th{background:#f1efe9}
-.info{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}.info td{border:1px solid #1B2430;padding:8px 10px}
-.tot{font-size:18px;font-weight:700;color:#0f766e}
-.btn{position:fixed;top:14px;right:14px;background:#0f766e;color:#fff;border:none;padding:10px 16px;border-radius:8px;cursor:pointer}@media print{.btn{display:none}}
-.sign{margin-top:48px;display:flex;justify-content:space-between;color:#667}
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap');
+*{box-sizing:border-box}
+@page{size:A4;margin:0}
+body{font-family:'Sarabun',-apple-system,'Segoe UI',Tahoma,sans-serif;color:#1B2430;margin:0;background:#e9e7e2}
+.page{width:210mm;min-height:297mm;margin:22px auto;padding:18mm 16mm;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.12)}
+.head{display:flex;align-items:center;gap:16px;border-bottom:3px solid #1B2430;padding-bottom:14px}
+.head img{height:66px;width:auto;flex-shrink:0}
+.head h1{font-size:19px;margin:0 0 2px}.muted{color:#6b675e;font-size:13px;line-height:1.5}
+.title{text-align:center;margin:20px 0 14px}
+.title .t{font-size:26px;font-weight:700;letter-spacing:2px}
+.title .badge{display:inline-block;margin-top:8px;font-size:13px;background:#f6f3ec;border:1px solid #d8d2c4;border-radius:20px;padding:3px 14px;color:#555}
+.info{width:100%;border-collapse:collapse;font-size:14px}
+.info td{border:1px solid #c9c3b6;padding:9px 12px}
+.info .lab{background:#f6f3ec;font-weight:600;width:140px;white-space:nowrap}
+.items{width:100%;border-collapse:collapse;margin-top:18px;font-size:14px}
+.items th,.items td{border:1px solid #c9c3b6;padding:9px 11px;vertical-align:top}
+.items thead th{background:#1B2430;color:#fff;font-weight:600;text-align:left}
+.items .c-no{width:48px;text-align:center}
+.items .c-date{width:120px;white-space:nowrap}
+.items .c-mtd{width:90px}
+.items .c-amt{width:140px;text-align:right;white-space:nowrap}
+.items .total-row td{background:#f6f3ec;font-weight:700;font-size:15px}
+.items .total-row .lbl{text-align:right}
+.items .total-row .c-amt{color:#0f766e;font-size:19px}
+.words{margin-top:10px;text-align:right;font-style:italic;color:#555}
+.slips{margin-top:16px}.slips .cap{color:#6b675e;font-size:13px;margin-bottom:6px}
+.slips .imgs{display:flex;gap:10px;flex-wrap:wrap}
+.slips img{max-width:190px;max-height:260px;border:1px solid #ccc;border-radius:6px}
+.sign{margin-top:64px;display:flex;justify-content:space-around;text-align:center;color:#555;font-size:14px}
+.sign .col{width:230px}.sign .ln{border-top:1px dotted #8a8478;padding-top:8px}
+.btn{position:fixed;top:14px;right:14px;background:#0f766e;color:#fff;border:none;padding:11px 18px;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit}
+@media print{body{background:#fff}.page{box-shadow:none;margin:0}.btn{display:none}}
 </style></head>
 <body><button class="btn" onclick="window.print()">${L.print}</button>
-<div class="head"><img src="${COMPANY_LOGO}" alt="logo" style="height:58px;width:auto;display:block;margin:0 auto 6px"/><h1>${esc(company.name || 'SquareOne')}</h1><div class="muted">${esc(company.address || '')}</div><div class="muted">${company.phone ? 'โทร: ' + esc(company.phone) : ''}${company.taxId ? '　เลขภาษี ' + esc(company.taxId) : ''}</div></div>
-<h2>${L.subtitle}</h2>
+<div class="page">
+<div class="head"><img src="${COMPANY_LOGO}" alt="logo"/><div><h1>${esc(company.name || 'SquareOne')}</h1><div class="muted">${esc(company.address || '')}</div><div class="muted">${company.phone ? 'โทร: ' + esc(company.phone) : ''}${company.taxId ? '　เลขประจำตัวผู้เสียภาษี ' + esc(company.taxId) : ''}</div></div></div>
+<div class="title"><div class="t">${L.subtitle}</div><div class="badge">${badge}</div></div>
 <table class="info"><tbody>
-<tr><td style="background:#f1efe9;font-weight:600;width:130px">${L.receiptNo}</td><td>${esc(receiptNo)}</td><td style="background:#f1efe9;font-weight:600;width:110px">${L.date}</td><td>${esc(dateStr)}</td></tr>
-<tr><td style="background:#f1efe9;font-weight:600">${L.customer}</td><td>${esc(customer || '-')}</td><td style="background:#f1efe9;font-weight:600">${L.ref}</td><td>${esc(quotationNo || '-')}</td></tr>
-<tr><td style="background:#f1efe9;font-weight:600">${L.project}</td><td colspan="3">${esc(project || '-')}</td></tr>
+<tr><td class="lab">${L.receiptNo}</td><td>${esc(receiptNo)}</td><td class="lab">${L.date}</td><td>${esc(dateStr)}</td></tr>
+<tr><td class="lab">${L.customer}</td><td>${esc(customer || '-')}</td><td class="lab">${L.ref}</td><td>${esc(quotationNo || '-')}</td></tr>
+<tr><td class="lab">${L.project}</td><td colspan="3">${esc(project || '-')}</td></tr>
 </tbody></table>
-<table><thead><tr><th>${L.item}</th><th style="text-align:right;width:150px">${L.amount}</th></tr></thead>
-<tbody><tr><td>${esc(itemName || '-')}</td><td style="text-align:right">${n2(amount)}</td></tr>
-<tr><td style="text-align:right;font-weight:700">${L.total}</td><td style="text-align:right"><span class="tot">${n2(amount)}</span></td></tr>
-${amountWords ? `<tr><td colspan="2" style="text-align:right;font-style:italic">(${esc(amountWords)})</td></tr>` : ''}
+<table class="items"><thead><tr><th class="c-no">${L.no}</th><th>${L.item}</th><th class="c-date">${L.rdate}</th><th class="c-mtd">${L.method}</th><th class="c-amt">${L.amount}</th></tr></thead>
+<tbody>${bodyRows}
+<tr class="total-row"><td colspan="4" class="lbl">${L.total}</td><td class="c-amt">${n2(total)}</td></tr>
 </tbody></table>
-<p style="margin-top:10px"><b>${L.method}:</b> ${esc(method || '-')}</p>
-${slip ? `<div style="margin-top:10px"><div class="muted">${L.slip}</div><img src="${slip}" style="max-width:280px;max-height:360px;border:1px solid #ccc;border-radius:6px;margin-top:6px"/></div>` : ''}
-<div class="sign"><div>........................................<br>${L.received}</div><div>........................................<br>${L.date}</div></div>
+${amountWords ? `<div class="words">(${esc(amountWords)})</div>` : ''}
+${slipArr.length ? `<div class="slips"><div class="cap">${L.slip}</div><div class="imgs">${slipArr.map((s) => `<img src="${s}"/>`).join('')}</div></div>` : ''}
+</div>
 </body></html>`;
 };
 
@@ -959,19 +987,37 @@ export default function QuotationSystem() {
     return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
   };
 
-  // ออกใบเสร็จอัตโนมัติของงวดที่รับเงินแล้ว
+  const words = (n) => (lang === 'en' ? numberToEnglishWords(n) : numberToThaiWords(n));
+  const companyOf = (q) => ({ name: q.companyName || settings.companyName, address: q.companyAddress || settings.companyAddress, phone: q.companyPhone || settings.companyPhone, taxId: q.companyTaxId || settings.companyTaxId });
+  const openOrDownload = (html, fname) => { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); } else downloadFile(html, fname, 'text/html;charset=utf-8'); };
+
+  // ใบเสร็จ "เฉพาะงวด"
   const printReceiptForInstallment = (q, inst, txn, idx) => {
     const amt = Number(txn.amount) || Number(inst.amount) || 0;
     const html = buildReceiptHTML({
-      company: { name: q.companyName || settings.companyName, address: q.companyAddress || settings.companyAddress, phone: q.companyPhone || settings.companyPhone, taxId: q.companyTaxId || settings.companyTaxId },
-      customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
+      company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
       receiptNo: `${q.quotationNo || 'RC'}-R${idx + 1}`,
-      itemName: inst.name, amount: amt, amountWords: numberToThaiWords(amt),
-      dateStr: formatDate(txn.date), method: txn.method, slip: txn.slip || null, lang,
+      rows: [{ name: inst.name, amount: amt, date: formatDate(txn.date), method: txn.method }],
+      amount: amt, amountWords: words(amt), dateStr: formatDate(txn.date), slips: txn.slip ? [txn.slip] : [], lang, kind: 'inst',
     });
-    const w = window.open('', '_blank');
-    if (w) { w.document.write(html); w.document.close(); }
-    else downloadFile(html, `ใบเสร็จ_${q.quotationNo || 'RC'}.html`, 'text/html;charset=utf-8');
+    openOrDownload(html, `ใบเสร็จ_${q.quotationNo || 'RC'}.html`);
+  };
+
+  // ใบเสร็จ "ยอดรวม" — รวมทุกงวดที่รับเงินแล้วของโครงการนี้
+  const printReceiptTotal = (q) => {
+    const qTxns = transactions.filter((t) => t.type === 'in' && t.quotationId === q.id);
+    if (!qTxns.length) { alert(lang === 'en' ? 'No payments received yet' : 'ยังไม่มีงวดที่รับเงิน'); return; }
+    const sorted = [...qTxns].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const rows = sorted.map((t) => ({ name: t.installment || t.quotationLabel || '-', amount: Number(t.amount) || 0, date: formatDate(t.date), method: t.method }));
+    const sum = rows.reduce((s, r) => s + r.amount, 0);
+    const slipsArr = sorted.map((t) => t.slip).filter(Boolean);
+    const latest = sorted.length ? sorted[sorted.length - 1].date : new Date().toISOString().slice(0, 10);
+    const html = buildReceiptHTML({
+      company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
+      receiptNo: `${q.quotationNo || 'RC'}-RT`,
+      rows, amount: sum, amountWords: words(sum), dateStr: formatDate(latest), slips: slipsArr, lang, kind: 'total',
+    });
+    openOrDownload(html, `ใบเสร็จยอดรวม_${q.quotationNo || 'RC'}.html`);
   };
 
   // ออกใบวางบิลของงวด (ขอเก็บเงินก่อนชำระ)
@@ -1016,6 +1062,9 @@ export default function QuotationSystem() {
               <span className="text-stone-600">{t('paySummary')}</span>
               <span className="font-bold text-emerald-700">{baht(totalReceived)} / {baht(Number(q.total) || 0)} ฿</span>
             </div>
+            {totalReceived > 0 && (
+              <button onClick={() => printReceiptTotal(q)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-200 rounded-lg font-semibold text-sm"><Printer size={16} /> {t('receiptTotalBtn')} ({baht(totalReceived)} ฿)</button>
+            )}
             {insts.length === 0 ? (
               <p className="text-center text-stone-400 py-6">{t('noInstallments')}</p>
             ) : insts.map((inst, idx) => {
