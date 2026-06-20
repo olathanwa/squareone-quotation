@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FileText, Plus, Trash2, Save, ArrowLeft, Printer, Search, Copy, Eye, Calculator, Info, QrCode, Settings, Wallet, TrendingUp, TrendingDown, Calendar, X, Paperclip, Download, Share2 } from 'lucide-react';
+import { FileText, Plus, Trash2, Save, ArrowLeft, Printer, Search, Copy, Eye, Calculator, Info, QrCode, Settings, Wallet, TrendingUp, TrendingDown, Calendar, X, Paperclip, Download, Share2, Pencil } from 'lucide-react';
 import { cloudStorage } from './supabase';
 
 // ===== QR Code PromptPay สแควร์วัน อินสเปคเตอร์ =====
@@ -766,9 +766,10 @@ export default function QuotationSystem() {
   };
 
   const duplicateQuotation = (q) => {
+    const { id: _omitId, savedAt: _omitSaved, ...rest } = JSON.parse(JSON.stringify(q)); // ไม่เอา id เดิมติดมา (กันใบซ้ำ id)
     setForm({
       ...getDefaultForm(),
-      ...JSON.parse(JSON.stringify(q)),
+      ...rest,
       quotationNo: generateQuotationNo(),
       date: new Date().toISOString().split('T')[0],
     });
@@ -818,7 +819,8 @@ export default function QuotationSystem() {
       return;
     }
     const id = editingId || `q_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const data = { id, ...form, total: calcSubtotal(), savedAt: new Date().toISOString() };
+    // วาง id ไว้หลัง ...form เสมอ เพื่อกัน form.id เก่า (เช่นจากการทำสำเนา) มาทับ id ที่ถูกต้อง
+    const data = { ...form, id, total: calcSubtotal(), savedAt: new Date().toISOString() };
     try {
       await window.storage.set(`quotation:${id}`, JSON.stringify(data));
       if (editingId) setQuotations(quotations.map(q => q.id === id ? data : q));
@@ -1028,10 +1030,11 @@ export default function QuotationSystem() {
                     {txn && <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 whitespace-nowrap">✓ {t('receivedBadge')}</span>}
                   </div>
                   {txn ? (
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                      <div className="text-xs text-stone-500 min-w-0 truncate">{t('paidOn')} {txn.date} · {txn.method}</div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="mt-2 space-y-2">
+                      <div className="text-xs text-stone-500 truncate">{t('paidOn')} {txn.date} · {txn.method} · <span className="font-semibold text-emerald-700">{baht(txn.amount)} ฿</span></div>
+                      <div className="flex flex-wrap items-center gap-2">
                         {txn.slip && <img src={txn.slip} alt="slip" className="w-9 h-9 rounded object-cover border border-stone-200" />}
+                        <button onClick={() => openTxn('in', txn)} className="flex items-center gap-1 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-sm whitespace-nowrap"><Pencil size={14} /> {bi('แก้ไข', 'Edit')}</button>
                         <button onClick={() => printBillForInstallment(q, inst, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-stone-300 text-stone-700 rounded-lg text-sm whitespace-nowrap"><FileText size={14} /> {t('billBtn')}</button>
                         <button onClick={() => printReceiptForInstallment(q, inst, txn, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-slate-900 text-amber-200 rounded-lg text-sm whitespace-nowrap"><Printer size={14} /> {t('receiptBtn')}</button>
                       </div>
