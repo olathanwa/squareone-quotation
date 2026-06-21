@@ -251,13 +251,13 @@ const buildFinanceReportHTML = ({ companyName, periodLabel, totalIn, totalOut, n
 };
 
 // ใบเสร็จรับเงิน (เฉพาะงวด หรือ ยอดรวม) — จัดหน้า A4 พิมพ์ได้
-const buildReceiptHTML = ({ company, customer, project, quotationNo, receiptNo, rows, itemName, amount, amountWords, dateStr, method, slips, slip, lang, kind }) => {
+const buildReceiptHTML = ({ company, customer, project, quotationNo, receiptNo, rows, itemName, amount, amountWords, dateStr, method, slips, slip, lang, kind, whtMode }) => {
   const en = lang === 'en';
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
-  const n2 = (n) => (Number(n) || 0).toLocaleString('th-TH');
+  const n2 = (n) => (Number(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const L = en
-    ? { title: 'Receipt', subtitle: 'RECEIPT', receiptNo: 'Receipt No.', date: 'Date', customer: 'Received from', project: 'Project', ref: 'Quotation Ref.', no: 'No.', item: 'Description', rdate: 'Date received', method: 'Method', amount: 'Amount (THB)', total: 'Total received', slip: 'Transfer slips', received: 'Received by', issuedDate: 'Date', print: 'Print / Save PDF', perInst: 'Per installment', totalKind: 'All payments received' }
-    : { title: 'ใบเสร็จรับเงิน', subtitle: 'ใบเสร็จรับเงิน / RECEIPT', receiptNo: 'เลขที่ใบเสร็จ', date: 'วันที่', customer: 'ได้รับเงินจาก', project: 'โครงการ', ref: 'อ้างอิงใบเสนอราคา', no: 'ลำดับ', item: 'รายการ', rdate: 'วันที่รับเงิน', method: 'ช่องทาง', amount: 'จำนวนเงิน (บาท)', total: 'รวมรับเงินทั้งสิ้น', slip: 'หลักฐานการโอน', received: 'ผู้รับเงิน', issuedDate: 'วันที่', print: 'พิมพ์ / บันทึก PDF', perInst: 'เฉพาะงวด', totalKind: 'ยอดรวมที่ชำระแล้ว' };
+    ? { title: 'Receipt', subtitle: 'RECEIPT', receiptNo: 'Receipt No.', date: 'Date', customer: 'Received from', project: 'Project', ref: 'Quotation Ref.', no: 'No.', item: 'Description', rdate: 'Date received', method: 'Method', amount: 'Amount (THB)', total: 'Total received', slip: 'Transfer slips', received: 'Received by', issuedDate: 'Date', print: 'Print / Save PDF', perInst: 'Per installment', totalKind: 'All payments received', wht: 'Withholding tax 3%', net: 'Net amount', whtIncluded: 'Price includes 3% withholding tax' }
+    : { title: 'ใบเสร็จรับเงิน', subtitle: 'ใบเสร็จรับเงิน / RECEIPT', receiptNo: 'เลขที่ใบเสร็จ', date: 'วันที่', customer: 'ได้รับเงินจาก', project: 'โครงการ', ref: 'อ้างอิงใบเสนอราคา', no: 'ลำดับ', item: 'รายการ', rdate: 'วันที่รับเงิน', method: 'ช่องทาง', amount: 'จำนวนเงิน (บาท)', total: 'รวมรับเงินทั้งสิ้น', slip: 'หลักฐานการโอน', received: 'ผู้รับเงิน', issuedDate: 'วันที่', print: 'พิมพ์ / บันทึก PDF', perInst: 'เฉพาะงวด', totalKind: 'ยอดรวมที่ชำระแล้ว', wht: 'หัก ณ ที่จ่าย 3%', net: 'ยอดสุทธิ', whtIncluded: 'ราคานี้รวมหัก ณ ที่จ่าย 3% แล้ว' };
   const rowsArr = (rows && rows.length) ? rows : [{ name: itemName, amount, date: dateStr, method }];
   const slipArr = (slips && slips.length) ? slips : (slip ? [slip] : []);
   const total = (amount != null) ? amount : rowsArr.reduce((s, r) => s + (Number(r.amount) || 0), 0);
@@ -311,6 +311,7 @@ body{font-family:'Sarabun',-apple-system,'Segoe UI',Tahoma,sans-serif;color:#1B2
 <table class="items"><thead><tr><th class="c-no">${L.no}</th><th>${L.item}</th><th class="c-date">${L.rdate}</th><th class="c-mtd">${L.method}</th><th class="c-amt">${L.amount}</th></tr></thead>
 <tbody>${bodyRows}
 <tr class="total-row"><td colspan="4" class="lbl">${L.total}</td><td class="c-amt">${n2(total)}</td></tr>
+${whtMode === 'deduct' ? `<tr><td colspan="4" class="lbl" style="text-align:right">${L.wht}</td><td class="c-amt">-${n2(total * 0.03)}</td></tr><tr class="total-row"><td colspan="4" class="lbl">${L.net}</td><td class="c-amt">${n2(total - total * 0.03)}</td></tr>` : whtMode === 'included' ? `<tr><td colspan="5" style="text-align:right;font-style:italic;color:#555;padding:8px 11px">(${L.whtIncluded} ${n2(total * 0.03)} ${en ? 'THB' : 'บาท'})</td></tr>` : ''}
 </tbody></table>
 ${amountWords ? `<div class="words">(${esc(amountWords)})</div>` : ''}
 ${slipArr.length ? `<div class="slips"><div class="cap">${L.slip}</div><div class="imgs">${slipArr.map((s) => `<img src="${s}"/>`).join('')}</div></div>` : ''}
@@ -319,13 +320,13 @@ ${slipArr.length ? `<div class="slips"><div class="cap">${L.slip}</div><div clas
 };
 
 // ใบวางบิล/วางบิลรายงวด (ขอเก็บเงินก่อนชำระ) — พิมพ์ได้ กระดาษขาว
-const buildBillHTML = ({ company, customer, customerAddress, project, quotationNo, billNo, itemName, amount, amountWords, dateStr, bankInfo, showQR, lang }) => {
+const buildBillHTML = ({ company, customer, customerAddress, project, quotationNo, billNo, itemName, amount, amountWords, dateStr, bankInfo, showQR, lang, whtMode }) => {
   const en = lang === 'en';
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
-  const n2 = (n) => (Number(n) || 0).toLocaleString('th-TH');
+  const n2 = (n) => (Number(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const L = en
-    ? { title: 'Invoice', subtitle: 'INVOICE / BILLING NOTE', billNo: 'Invoice No.', date: 'Date', customer: 'Bill to', project: 'Project', ref: 'Quotation Ref.', item: 'Description', amount: 'Amount (THB)', total: 'Total', pay: 'Payment details', note: 'Please make payment as detailed above.', issuer: 'Issued by', receiver: 'Received by', print: 'Print / Save PDF' }
-    : { title: 'ใบวางบิล', subtitle: 'ใบวางบิล / INVOICE', billNo: 'เลขที่ใบวางบิล', date: 'วันที่', customer: 'วางบิลถึง', project: 'โครงการ', ref: 'อ้างอิงใบเสนอราคา', item: 'รายการ', amount: 'จำนวนเงิน (บาท)', total: 'รวมเป็นเงิน', pay: 'รายละเอียดการชำระเงิน', note: 'กรุณาชำระเงินตามรายละเอียดข้างต้น', issuer: 'ผู้วางบิล', receiver: 'ผู้รับวางบิล', print: 'พิมพ์ / บันทึก PDF' };
+    ? { title: 'Invoice', subtitle: 'INVOICE / BILLING NOTE', billNo: 'Invoice No.', date: 'Date', customer: 'Bill to', project: 'Project', ref: 'Quotation Ref.', item: 'Description', amount: 'Amount (THB)', total: 'Total', pay: 'Payment details', note: 'Please make payment as detailed above.', issuer: 'Issued by', receiver: 'Received by', print: 'Print / Save PDF', wht: 'Withholding tax 3%', net: 'Net payable', whtIncluded: 'Price includes 3% withholding tax' }
+    : { title: 'ใบวางบิล', subtitle: 'ใบวางบิล / INVOICE', billNo: 'เลขที่ใบวางบิล', date: 'วันที่', customer: 'วางบิลถึง', project: 'โครงการ', ref: 'อ้างอิงใบเสนอราคา', item: 'รายการ', amount: 'จำนวนเงิน (บาท)', total: 'รวมเป็นเงิน', pay: 'รายละเอียดการชำระเงิน', note: 'กรุณาชำระเงินตามรายละเอียดข้างต้น', issuer: 'ผู้วางบิล', receiver: 'ผู้รับวางบิล', print: 'พิมพ์ / บันทึก PDF', wht: 'หัก ณ ที่จ่าย 3%', net: 'ยอดชำระสุทธิ', whtIncluded: 'ราคานี้รวมหัก ณ ที่จ่าย 3% แล้ว' };
   return `<!doctype html><html lang="${en ? 'en' : 'th'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${L.title} ${esc(billNo)}</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap');
@@ -352,6 +353,7 @@ ${customerAddress ? `<tr><td style="background:#f1efe9;font-weight:600">${en ? '
 <table><thead><tr><th>${L.item}</th><th style="text-align:right;width:150px">${L.amount}</th></tr></thead>
 <tbody><tr><td>${esc(itemName || '-')}</td><td style="text-align:right">${n2(amount)}</td></tr>
 <tr><td style="text-align:right;font-weight:700">${L.total}</td><td style="text-align:right"><span class="tot">${n2(amount)}</span></td></tr>
+${whtMode === 'deduct' ? `<tr><td style="text-align:right">${L.wht}</td><td style="text-align:right">-${n2(amount * 0.03)}</td></tr><tr><td style="text-align:right;font-weight:700">${L.net}</td><td style="text-align:right"><span class="tot">${n2(amount - amount * 0.03)}</span></td></tr>` : whtMode === 'included' ? `<tr><td colspan="2" style="text-align:right;font-style:italic;color:#555">(${L.whtIncluded} ${n2(amount * 0.03)} ${en ? 'THB' : 'บาท'})</td></tr>` : ''}
 ${amountWords ? `<tr><td colspan="2" style="text-align:right;font-style:italic">(${esc(amountWords)})</td></tr>` : ''}
 </tbody></table>
 <div class="pay">
@@ -463,12 +465,13 @@ export default function QuotationSystem() {
     ], // เริ่มต้นมีรายการแรก = ตรวจสอบบ้าน (เพิ่ม/ลบ/แก้ต่อได้)
     travelFee: { enabled: false, route: '', count: 2, pricePerTrip: 1000 },
     installments: [
-      { name: 'มัดจำและกำหนดวันตรวจ', amount: 1500 },
-      { name: 'เมื่อส่งรายงานการตรวจรอบที่ 1 เสร็จ', amount: 3500 }
+      { name: 'มัดจำและกำหนดวันตรวจ', amount: 2000 },
+      { name: 'เมื่อส่งรายงานการตรวจรอบที่ 1 เสร็จ', amount: 3000 }
     ],
     extraNotes: ['ราคานี้ครอบคลุมการตรวจ 3 รอบ (ในรายการแก้ไขจากรอบแรก)'],
     bankInfo: buildBankInfo(settings),
     showQR: true,
+    whtMode: 'none', // หัก ณ ที่จ่าย 3%: 'none' | 'deduct' (หักจากราคา) | 'included' (รวมในราคาแล้ว)
     // snapshot ข้อมูลบริษัทตอนสร้างใบ
     companyName: settings.companyName,
     companyAddress: settings.companyAddress,
@@ -1068,7 +1071,7 @@ export default function QuotationSystem() {
       company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
       receiptNo: `${q.quotationNo || 'RC'}-R${idx + 1}`,
       rows: [{ name: inst.name, amount: amt, date: formatDate(txn.date), method: txn.method }],
-      amount: amt, amountWords: words(amt), dateStr: formatDate(txn.date), slips: txn.slip ? [txn.slip] : [], lang, kind: 'inst',
+      amount: amt, amountWords: words(amt), dateStr: formatDate(txn.date), slips: txn.slip ? [txn.slip] : [], lang, kind: 'inst', whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'),
     });
   };
   const printReceiptForInstallment = (q, inst, txn, idx) => openOrDownload(receiptHtmlInstallment(q, inst, txn, idx), `ใบเสร็จ_${q.quotationNo || 'RC'}.html`);
@@ -1090,7 +1093,7 @@ export default function QuotationSystem() {
     return buildReceiptHTML({
       company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
       receiptNo: `${q.quotationNo || 'RC'}-RT`,
-      rows, amount: sum, amountWords: words(sum), dateStr: formatDate(latest), slips: slipsArr, lang, kind: 'total',
+      rows, amount: sum, amountWords: words(sum), dateStr: formatDate(latest), slips: slipsArr, lang, kind: 'total', whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'),
     });
   };
   const printReceiptTotal = (q) => {
@@ -1110,7 +1113,7 @@ export default function QuotationSystem() {
       customer: q.customerName, customerAddress: q.address, project: q.project, quotationNo: q.quotationNo,
       billNo: `${q.quotationNo || 'INV'}-B${idx + 1}`,
       itemName: inst.name, amount: amt, amountWords: numberToThaiWords(amt),
-      dateStr: formatDate(new Date().toISOString().slice(0, 10)), bankInfo: q.bankInfo, showQR: q.showQR !== false, lang,
+      dateStr: formatDate(new Date().toISOString().slice(0, 10)), bankInfo: q.bankInfo, showQR: q.showQR !== false, lang, whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'),
     });
     const w = window.open('', '_blank');
     if (w) { w.document.write(html); w.document.close(); }
@@ -1679,7 +1682,29 @@ export default function QuotationSystem() {
           {/* สรุปรายเดือน (เฉพาะมุมมองรายปี) */}
           {monthly && (
             <div className="bg-white border border-stone-200 rounded-lg p-4 mb-6 overflow-x-auto">
-              <p className="font-semibold text-stone-800 mb-3">{t('monthlyTitle')} {yearDisp(selYear)}</p>
+              <div className="flex items-center justify-between mb-3 min-w-[480px]">
+                <p className="font-semibold text-stone-800">{t('monthlyTitle')} {yearDisp(selYear)}</p>
+                <div className="flex items-center gap-3 text-xs text-stone-500">
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-emerald-500"></span>{t('tIncome')}</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-rose-400"></span>{t('tExpense')}</span>
+                </div>
+              </div>
+              {(() => {
+                const max = Math.max(1, ...monthly.map((r) => Math.max(r.in, r.out)));
+                return (
+                  <div className="flex items-end gap-1.5 h-44 mb-5 min-w-[480px] border-b border-stone-200 pb-0">
+                    {monthly.map((r) => (
+                      <div key={r.m} className="flex-1 flex flex-col items-center justify-end h-full">
+                        <div className="w-full flex items-end justify-center gap-0.5 flex-1">
+                          <div className="w-1/2 max-w-[14px] bg-emerald-500 rounded-t" style={{ height: `${(r.in / max) * 100}%` }} title={`${MONTHS[r.m]} · ${t('tIncome')}: ${baht(r.in)} ฿`}></div>
+                          <div className="w-1/2 max-w-[14px] bg-rose-400 rounded-t" style={{ height: `${(r.out / max) * 100}%` }} title={`${MONTHS[r.m]} · ${t('tExpense')}: ${baht(r.out)} ฿`}></div>
+                        </div>
+                        <span className="text-[10px] text-stone-400 mt-1">{MONTHS[r.m]}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
               <table className="w-full text-sm min-w-[480px]">
                 <thead><tr className="text-stone-500 border-b border-stone-200"><th className="text-left py-2">{t('tMonth')}</th><th className="text-right py-2">{t('tIncome')}</th><th className="text-right py-2">{t('tExpense')}</th><th className="text-right py-2">{t('tBalance')}</th></tr></thead>
                 <tbody>
@@ -2428,6 +2453,26 @@ export default function QuotationSystem() {
                 <p className="text-stone-600 text-xs">{bi('QR นี้จะแสดงในใบเสนอราคา', 'This QR will appear on the quotation')}</p>
               </div>
             )}
+            <div className="mt-4 pt-4 border-t border-stone-200">
+              <p className="font-medium text-stone-700 mb-1">{bi('หัก ณ ที่จ่าย 3% (ลูกค้านิติบุคคล)', 'Withholding tax 3% (company client)')}</p>
+              <p className="text-stone-500 text-xs mb-2">{bi('เลือกวิธีแสดงในใบวางบิล/ใบเสร็จ', 'Choose how it appears on invoice/receipt')}</p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                {[
+                  { v: 'none', th: 'ไม่หัก', en: 'None', desc: bi('ไม่มีหัก ณ ที่จ่าย', 'No withholding') },
+                  { v: 'deduct', th: 'หักออกจากราคา', en: 'Deduct from price', desc: bi('ลูกค้าจ่าย ราคา − 3%', 'Client pays price − 3%') },
+                  { v: 'included', th: 'ราคารวมหักแล้ว', en: 'Included in price', desc: bi('ลูกค้าจ่ายเต็ม + หมายเหตุ', 'Client pays full + note') },
+                ].map((o) => {
+                  const cur = form.whtMode || (form.withholdingTax ? 'deduct' : 'none');
+                  const active = cur === o.v;
+                  return (
+                    <button key={o.v} type="button" onClick={() => setForm({ ...form, whtMode: o.v, withholdingTax: o.v !== 'none' })} className={`flex-1 text-left px-3 py-2 rounded-lg border ${active ? 'bg-emerald-700 border-emerald-700 text-white' : 'bg-white border-stone-300 text-stone-700 hover:bg-stone-50'}`}>
+                      <div className="font-semibold text-sm">{bi(o.th, o.en)}</div>
+                      <div className={`text-xs ${active ? 'text-emerald-100' : 'text-stone-500'}`}>{o.desc}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 
