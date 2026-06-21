@@ -912,7 +912,12 @@ export default function QuotationSystem() {
   };
 
   // ลิงก์ใบเสนอราคาสำหรับส่งให้ลูกค้า
-  const shareUrl = (q) => `${window.location.origin}${window.location.pathname}?q=${q.id}`;
+  // ป้ายชื่อลิงก์ให้ดูรู้ว่าใบไหน/ของใคร (โครงการ_ลูกค้า) — ตัดอักขระที่ทำให้ลิงก์พัง
+  const linkSlug = (q) => {
+    const clean = (s) => String(s || '').trim().replace(/[?#&/\\%\s]+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+    return [clean(q.project), clean(q.customerName)].filter(Boolean).join('_').slice(0, 50);
+  };
+  const shareUrl = (q) => { const s = linkSlug(q); return `${window.location.origin}${window.location.pathname}?q=${q.id}${s ? `&n=${s}` : ''}`; };
   const doCopyLink = () => {
     if (!shareLinkQ) return;
     const url = shareUrl(shareLinkQ);
@@ -1103,7 +1108,7 @@ export default function QuotationSystem() {
   };
 
   // ลิงก์ใบเสร็จสำหรับส่งลูกค้า (?receipt=<id> หรือ &inst=<idx>)
-  const receiptUrl = (q, instIdx) => `${window.location.origin}${window.location.pathname}?receipt=${q.id}${instIdx != null ? `&inst=${instIdx}` : ''}`;
+  const receiptUrl = (q, instIdx) => { const s = linkSlug(q); return `${window.location.origin}${window.location.pathname}?receipt=${q.id}${instIdx != null ? `&inst=${instIdx}` : ''}${s ? `&n=${s}` : ''}`; };
 
   // ออกใบวางบิลของงวด (ขอเก็บเงินก่อนชำระ)
   const printBillForInstallment = (q, inst, idx) => {
