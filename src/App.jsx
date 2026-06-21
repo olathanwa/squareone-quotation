@@ -1827,7 +1827,7 @@ export default function QuotationSystem() {
                 </button>
               )}
               <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg">
-                <Printer size={18} /> {bi('พิมพ์ / PDF', 'Print / PDF')}
+                <Download size={18} /> {bi('บันทึก PDF', 'Save PDF')}
               </button>
             </div>
           </div>
