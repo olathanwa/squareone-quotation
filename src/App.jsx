@@ -2118,7 +2118,7 @@ export default function QuotationSystem() {
                     <tr key={q.id} className="border-b border-stone-100 hover:bg-stone-50">
                       <td className="px-4 py-3 font-mono text-sm whitespace-nowrap" title={q.quotationNo}>#{(() => { const s = String(q.quotationNo || ''); const i = s.lastIndexOf('-'); return i === -1 ? s : s.slice(i + 1); })()}</td>
                       <td className="px-4 py-3 font-semibold">
-                        {q.customerName}
+                        <span className={st.key === 'paid' ? 'text-emerald-600' : st.key === 'partial' ? 'text-amber-500' : 'text-stone-900'}>{q.customerName}</span>
                         {q.project && <div className="md:hidden text-xs font-normal text-stone-500 mt-0.5">📋 {q.project}</div>}
                         {(() => { const ws = QSTATUS[q.status] || QSTATUS.open; return <div className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${ws.cls}`}>{lang === 'en' ? ws.en : ws.th}</div>; })()}
                       </td>
