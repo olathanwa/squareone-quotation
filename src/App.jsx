@@ -297,6 +297,7 @@ body{font-family:'Sarabun',-apple-system,'Segoe UI',Tahoma,sans-serif;color:#1B2
 .sign .col{width:230px}.sign .ln{border-top:1px dotted #8a8478;padding-top:8px}
 .btn{position:fixed;top:14px;right:14px;background:#0f766e;color:#fff;border:none;padding:11px 18px;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit}
 @media print{body{background:#fff}.page{box-shadow:none;margin:0}.btn{display:none}}
+@media screen and (max-width:820px){body{background:#fff}.page{width:100%;min-height:auto;margin:0;padding:16px 13px;box-shadow:none}.head img{height:50px}.head h1{font-size:16px}.muted{font-size:11px}.title .t{font-size:21px}.info,.items{font-size:12px}.info td,.items th,.items td{padding:6px 7px}.info .lab{width:auto}.slips img{max-width:46%}}
 </style></head>
 <body><button class="btn" onclick="window.print()">${L.print}</button>
 <div class="page">
@@ -393,6 +394,14 @@ export default function QuotationSystem() {
   const shareMode = !!shareId;
   const [shareLoaded, setShareLoaded] = useState(false);
   const [shareNotFound, setShareNotFound] = useState(false);
+  // ===== โหมดแชร์ใบเสร็จให้ลูกค้า (?receipt=<id>&inst=<idx?>) =====
+  const receiptParams = (() => { try { const p = new URLSearchParams(window.location.search); return { id: p.get('receipt'), inst: p.get('inst') }; } catch { return { id: null, inst: null }; } })();
+  const receiptId = receiptParams.id;
+  const receiptMode = !!receiptId;
+  const [receiptHtml, setReceiptHtml] = useState('');
+  const [receiptShareState, setReceiptShareState] = useState('loading'); // loading | ready | notfound
+  // ลิงก์ใบเสร็จที่กำลังแสดง (โมดัลคัดลอก)
+  const [receiptLink, setReceiptLink] = useState(null); // { url, title } | null
   // ===== ย่อหน้าใบเสนอราคาให้พอดีจอ (แสดงผลเหมือน A4/PDF เป๊ะ) =====
   const a4WrapRef = useRef(null);
   const a4PageRef = useRef(null);
@@ -542,6 +551,35 @@ export default function QuotationSystem() {
         else setShareNotFound(true);
       } catch (e) { console.error(e); setShareNotFound(true); }
       setShareLoaded(true);
+    })();
+  }, []);
+
+  // โหลดใบเสร็จที่แชร์มา (จากลิงก์ ?receipt=<id>&inst=<idx?>) แล้วสร้าง HTML ใบเสร็จ
+  useEffect(() => {
+    if (!receiptId) return;
+    (async () => {
+      try {
+        const r = await window.storage.get('quotation:' + receiptId);
+        if (!r) { setReceiptShareState('notfound'); return; }
+        const q = JSON.parse(r.value);
+        // ดึงรายการรับเงินของใบนี้
+        const list = await window.storage.list('txn:');
+        const txns = (await Promise.all((list.keys || []).map(async (k) => { try { const g = await window.storage.get(k); return g ? JSON.parse(g.value) : null; } catch { return null; } }))).filter(Boolean);
+        const qTxns = txns.filter((t) => t.type === 'in' && t.quotationId === q.id);
+        if (!qTxns.length) { setReceiptShareState('notfound'); return; }
+        let html;
+        const instIdx = receiptParams.inst != null ? parseInt(receiptParams.inst, 10) : null;
+        if (instIdx != null && q.installments && q.installments[instIdx]) {
+          const inst = q.installments[instIdx];
+          const txn = qTxns.find((t) => (t.installment || '').trim() === (inst.name || '').trim());
+          if (!txn) { setReceiptShareState('notfound'); return; }
+          html = receiptHtmlInstallment(q, inst, txn, instIdx);
+        } else {
+          html = receiptHtmlTotal(q, qTxns);
+        }
+        setReceiptHtml(html);
+        setReceiptShareState('ready');
+      } catch (e) { console.error(e); setReceiptShareState('notfound'); }
     })();
   }, []);
 
@@ -915,6 +953,38 @@ export default function QuotationSystem() {
     );
   };
 
+  // โมดัลลิงก์ใบเสร็จส่งลูกค้า
+  const doCopyReceiptLink = () => {
+    if (!receiptLink) return;
+    const el = document.getElementById('receiptlink-input');
+    if (el) { el.focus(); el.select(); try { document.execCommand('copy'); } catch { /* ignore */ } }
+    if (navigator.clipboard) { try { navigator.clipboard.writeText(receiptLink.url).catch(() => {}); } catch { /* ignore */ } }
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+  const ReceiptLinkModal = () => {
+    if (!receiptLink) return null;
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={(e) => { if (e.target === e.currentTarget) setReceiptLink(null); }}>
+        <div className="bg-white w-full sm:max-w-lg sm:rounded-xl rounded-t-2xl">
+          <div className="px-5 py-4 flex items-center justify-between text-white bg-slate-900 sm:rounded-t-xl">
+            <h3 className="font-bold text-lg flex items-center gap-2"><Share2 size={20} /> {bi('ลิงก์ใบเสร็จรับเงิน', 'Receipt link')}</h3>
+            <button onClick={() => setReceiptLink(null)} className="opacity-80 hover:opacity-100"><X size={22} /></button>
+          </div>
+          <div className="p-5 space-y-3">
+            <p className="font-medium text-stone-800">{receiptLink.title}</p>
+            <p className="text-sm text-stone-500">{bi('ส่งลิงก์นี้ให้ลูกค้า เปิดดู/พิมพ์ใบเสร็จได้ (อ่านอย่างเดียว ไม่ต้องใส่รหัส)', 'Send this link to your customer to view/print the receipt (read-only, no password)')}</p>
+            <input id="receiptlink-input" readOnly value={receiptLink.url} onClick={(e) => e.target.select()} className="w-full px-3 py-2.5 border border-stone-300 rounded-lg bg-stone-50 text-sm text-stone-700 font-mono" />
+            <button onClick={doCopyReceiptLink} className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold text-white ${linkCopied ? 'bg-emerald-600' : 'bg-emerald-700 hover:bg-emerald-800'}`}>
+              {linkCopied ? <>✓ {bi('คัดลอกแล้ว', 'Copied')}</> : <><Copy size={18} /> {bi('คัดลอกลิงก์', 'Copy link')}</>}
+            </button>
+            <a href={receiptLink.url} target="_blank" rel="noreferrer" className="block text-center text-sm text-blue-600 hover:underline">{bi('เปิดดูตัวอย่าง (อย่างที่ลูกค้าเห็น)', 'Preview (as the customer sees it)')}</a>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // อัปเดตสถานะงานของโครงการ
   const updateQuotationStatus = async (q, status) => {
     const updated = { ...q, status };
@@ -991,22 +1061,20 @@ export default function QuotationSystem() {
   const companyOf = (q) => ({ name: q.companyName || settings.companyName, address: q.companyAddress || settings.companyAddress, phone: q.companyPhone || settings.companyPhone, taxId: q.companyTaxId || settings.companyTaxId });
   const openOrDownload = (html, fname) => { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); } else downloadFile(html, fname, 'text/html;charset=utf-8'); };
 
-  // ใบเสร็จ "เฉพาะงวด"
-  const printReceiptForInstallment = (q, inst, txn, idx) => {
+  // สร้าง HTML ใบเสร็จ "เฉพาะงวด"
+  const receiptHtmlInstallment = (q, inst, txn, idx) => {
     const amt = Number(txn.amount) || Number(inst.amount) || 0;
-    const html = buildReceiptHTML({
+    return buildReceiptHTML({
       company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
       receiptNo: `${q.quotationNo || 'RC'}-R${idx + 1}`,
       rows: [{ name: inst.name, amount: amt, date: formatDate(txn.date), method: txn.method }],
       amount: amt, amountWords: words(amt), dateStr: formatDate(txn.date), slips: txn.slip ? [txn.slip] : [], lang, kind: 'inst',
     });
-    openOrDownload(html, `ใบเสร็จ_${q.quotationNo || 'RC'}.html`);
   };
+  const printReceiptForInstallment = (q, inst, txn, idx) => openOrDownload(receiptHtmlInstallment(q, inst, txn, idx), `ใบเสร็จ_${q.quotationNo || 'RC'}.html`);
 
-  // ใบเสร็จ "ยอดรวม" — รวมทุกงวดที่รับเงินแล้วของโครงการนี้
-  const printReceiptTotal = (q) => {
-    const qTxns = transactions.filter((t) => t.type === 'in' && t.quotationId === q.id);
-    if (!qTxns.length) { alert(lang === 'en' ? 'No payments received yet' : 'ยังไม่มีงวดที่รับเงิน'); return; }
+  // สร้าง HTML ใบเสร็จ "ยอดรวม" จากรายการรับเงินที่ส่งเข้ามา (qTxns)
+  const receiptHtmlTotal = (q, qTxns) => {
     // เรียงตามลำดับงวด (งวด 1 อยู่บนสุด) ไม่ใช่ตามวันที่รับเงิน
     const ordered = [];
     const used = new Set();
@@ -1019,13 +1087,20 @@ export default function QuotationSystem() {
     const sum = rows.reduce((s, r) => s + r.amount, 0);
     const slipsArr = ordered.map((t) => t.slip).filter(Boolean);
     const latest = [...qTxns].map((t) => t.date).filter(Boolean).sort().slice(-1)[0] || new Date().toISOString().slice(0, 10);
-    const html = buildReceiptHTML({
+    return buildReceiptHTML({
       company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
       receiptNo: `${q.quotationNo || 'RC'}-RT`,
       rows, amount: sum, amountWords: words(sum), dateStr: formatDate(latest), slips: slipsArr, lang, kind: 'total',
     });
-    openOrDownload(html, `ใบเสร็จยอดรวม_${q.quotationNo || 'RC'}.html`);
   };
+  const printReceiptTotal = (q) => {
+    const qTxns = transactions.filter((t) => t.type === 'in' && t.quotationId === q.id);
+    if (!qTxns.length) { alert(lang === 'en' ? 'No payments received yet' : 'ยังไม่มีงวดที่รับเงิน'); return; }
+    openOrDownload(receiptHtmlTotal(q, qTxns), `ใบเสร็จยอดรวม_${q.quotationNo || 'RC'}.html`);
+  };
+
+  // ลิงก์ใบเสร็จสำหรับส่งลูกค้า (?receipt=<id> หรือ &inst=<idx>)
+  const receiptUrl = (q, instIdx) => `${window.location.origin}${window.location.pathname}?receipt=${q.id}${instIdx != null ? `&inst=${instIdx}` : ''}`;
 
   // ออกใบวางบิลของงวด (ขอเก็บเงินก่อนชำระ)
   const printBillForInstallment = (q, inst, idx) => {
@@ -1070,7 +1145,10 @@ export default function QuotationSystem() {
               <span className="font-bold text-emerald-700">{baht(totalReceived)} / {baht(Number(q.total) || 0)} ฿</span>
             </div>
             {totalReceived > 0 && (
-              <button onClick={() => printReceiptTotal(q)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-200 rounded-lg font-semibold text-sm"><Printer size={16} /> {t('receiptTotalBtn')} ({baht(totalReceived)} ฿)</button>
+              <div className="flex gap-2">
+                <button onClick={() => printReceiptTotal(q)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-200 rounded-lg font-semibold text-sm"><Printer size={16} /> {t('receiptTotalBtn')} ({baht(totalReceived)} ฿)</button>
+                <button onClick={() => { setLinkCopied(false); setReceiptLink({ url: receiptUrl(q), title: `${t('receiptTotalBtn')} · ${q.quotationNo || ''}` }); }} className="flex items-center justify-center gap-1 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm whitespace-nowrap" title={bi('ลิงก์ส่งลูกค้า', 'Share link')}><Share2 size={16} /> {bi('ลิงก์', 'Link')}</button>
+              </div>
             )}
             {insts.length === 0 ? (
               <p className="text-center text-stone-400 py-6">{t('noInstallments')}</p>
@@ -1093,6 +1171,7 @@ export default function QuotationSystem() {
                         <button onClick={() => openTxn('in', txn)} className="flex items-center gap-1 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-sm whitespace-nowrap"><Pencil size={14} /> {bi('แก้ไข', 'Edit')}</button>
                         <button onClick={() => printBillForInstallment(q, inst, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-stone-300 text-stone-700 rounded-lg text-sm whitespace-nowrap"><FileText size={14} /> {t('billBtn')}</button>
                         <button onClick={() => printReceiptForInstallment(q, inst, txn, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-slate-900 text-amber-200 rounded-lg text-sm whitespace-nowrap"><Printer size={14} /> {t('receiptBtn')}</button>
+                        <button onClick={() => { setLinkCopied(false); setReceiptLink({ url: receiptUrl(q, idx), title: `${bi('ใบเสร็จงวด', 'Receipt installment')} ${idx + 1} · ${q.quotationNo || ''}` }); }} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm whitespace-nowrap" title={bi('ลิงก์ส่งลูกค้า', 'Share link')}><Share2 size={14} /> {bi('ลิงก์', 'Link')}</button>
                       </div>
                     </div>
                   ) : (
@@ -1441,6 +1520,25 @@ export default function QuotationSystem() {
   };
 
   // ===== โหมดแชร์ลิงก์: ลูกค้าเปิดลิงก์เห็นใบเสนอราคาอย่างเดียว (ข้ามด่านรหัส/รายการ) =====
+  // ===== โหมดแชร์ใบเสร็จ (?receipt=) — แสดงใบเสร็จเต็มจอ พิมพ์ได้ =====
+  if (receiptMode) {
+    if (receiptShareState === 'notfound') {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-stone-100 p-6 text-center" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+          <p className="text-stone-500">{bi('ไม่พบใบเสร็จนี้ (อาจยังไม่ได้รับเงิน หรือถูกลบไปแล้ว)', 'Receipt not found (no payment yet, or it was deleted)')}</p>
+        </div>
+      );
+    }
+    if (receiptShareState !== 'ready') {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-stone-100" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+          <p className="text-stone-500">{bi('กำลังโหลดใบเสร็จ…', 'Loading receipt…')}</p>
+        </div>
+      );
+    }
+    return <iframe title="receipt" srcDoc={receiptHtml} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', border: 0, background: '#fff' }} />;
+  }
+
   if (shareMode && !shareLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-100" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
@@ -1894,6 +1992,7 @@ export default function QuotationSystem() {
       <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
         <PaymentsModal />
         <ShareLinkModal />
+        <ReceiptLinkModal />
         <TxnModal />
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap');
