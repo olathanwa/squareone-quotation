@@ -251,7 +251,7 @@ const buildFinanceReportHTML = ({ companyName, periodLabel, totalIn, totalOut, n
 };
 
 // ใบเสร็จรับเงิน (เฉพาะงวด หรือ ยอดรวม) — จัดหน้า A4 พิมพ์ได้
-const buildReceiptHTML = ({ company, customer, project, quotationNo, receiptNo, rows, itemName, amount, amountWords, dateStr, method, slips, slip, lang, kind, whtMode }) => {
+const buildReceiptHTML = ({ company, customer, project, quotationNo, receiptNo, rows, itemName, amount, amountWords, dateStr, method, slips, slip, lang, kind, whtMode, hideBtn }) => {
   const en = lang === 'en';
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
   const n2 = (n) => (Number(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -299,7 +299,7 @@ body{font-family:'Sarabun',-apple-system,'Segoe UI',Tahoma,sans-serif;color:#1B2
 @media print{body{background:#fff}.page{box-shadow:none;margin:0}.btn{display:none}}
 @media screen and (max-width:820px){body{background:#fff}.page{width:100%;min-height:auto;margin:0;padding:16px 13px;box-shadow:none}.head img{height:50px}.head h1{font-size:16px}.muted{font-size:11px}.title .t{font-size:21px}.info,.items{font-size:12px}.info td,.items th,.items td{padding:6px 7px}.info .lab{width:auto}.slips img{max-width:46%}}
 </style></head>
-<body><button class="btn" onclick="window.print()">${L.print}</button>
+<body>${hideBtn ? '' : `<button class="btn" onclick="window.print()">${L.print}</button>`}
 <div class="page">
 <div class="head"><img src="${COMPANY_LOGO}" alt="logo"/><div><h1>${esc(company.name || 'SquareOne')}</h1><div class="muted">${esc(company.address || '')}</div><div class="muted">${company.phone ? 'โทร: ' + esc(company.phone) : ''}${company.taxId ? '　เลขประจำตัวผู้เสียภาษี ' + esc(company.taxId) : ''}</div></div></div>
 <div class="title"><div class="t">${L.subtitle}</div><div class="badge">${badge}</div></div>
@@ -404,6 +404,10 @@ export default function QuotationSystem() {
   const [receiptShareState, setReceiptShareState] = useState('loading'); // loading | ready | notfound
   // ลิงก์ใบเสร็จที่กำลังแสดง (โมดัลคัดลอก)
   const [receiptLink, setReceiptLink] = useState(null); // { url, title } | null
+  // หน้า review ใบเสร็จ: { q, idx } (idx=null = ใบเสร็จยอดรวม, idx=number = เฉพาะงวด)
+  const [receiptReview, setReceiptReview] = useState(null);
+  const [receiptReviewLang, setReceiptReviewLang] = useState('th');
+  const receiptReviewRef = useRef(null);
   // ===== ย่อหน้าใบเสนอราคาให้พอดีจอ (แสดงผลเหมือน A4/PDF เป๊ะ) =====
   const a4WrapRef = useRef(null);
   const a4PageRef = useRef(null);
@@ -973,7 +977,7 @@ export default function QuotationSystem() {
   const ReceiptLinkModal = () => {
     if (!receiptLink) return null;
     return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={(e) => { if (e.target === e.currentTarget) setReceiptLink(null); }}>
+      <div className="fixed inset-0 bg-black/50 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={(e) => { if (e.target === e.currentTarget) setReceiptLink(null); }}>
         <div className="bg-white w-full sm:max-w-lg sm:rounded-xl rounded-t-2xl">
           <div className="px-5 py-4 flex items-center justify-between text-white bg-slate-900 sm:rounded-t-xl">
             <h3 className="font-bold text-lg flex items-center gap-2"><Share2 size={20} /> {bi('ลิงก์ใบเสร็จรับเงิน', 'Receipt link')}</h3>
@@ -1065,24 +1069,24 @@ export default function QuotationSystem() {
     return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
   };
 
-  const words = (n) => (lang === 'en' ? numberToEnglishWords(n) : numberToThaiWords(n));
+  const words = (n, lng = lang) => (lng === 'en' ? numberToEnglishWords(n) : numberToThaiWords(n));
   const companyOf = (q) => ({ name: q.companyName || settings.companyName, address: q.companyAddress || settings.companyAddress, phone: q.companyPhone || settings.companyPhone, taxId: q.companyTaxId || settings.companyTaxId });
   const openOrDownload = (html, fname) => { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); } else downloadFile(html, fname, 'text/html;charset=utf-8'); };
 
   // สร้าง HTML ใบเสร็จ "เฉพาะงวด"
-  const receiptHtmlInstallment = (q, inst, txn, idx) => {
+  const receiptHtmlInstallment = (q, inst, txn, idx, lng = lang, hideBtn = false) => {
     const amt = Number(txn.amount) || Number(inst.amount) || 0;
     return buildReceiptHTML({
       company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
       receiptNo: `${q.quotationNo || 'RC'}-R${idx + 1}`,
       rows: [{ name: inst.name, amount: amt, date: formatDate(txn.date), method: txn.method }],
-      amount: amt, amountWords: words(amt), dateStr: formatDate(txn.date), slips: txn.slip ? [txn.slip] : [], lang, kind: 'inst', whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'),
+      amount: amt, amountWords: words(amt, lng), dateStr: formatDate(txn.date), slips: txn.slip ? [txn.slip] : [], lang: lng, kind: 'inst', whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), hideBtn,
     });
   };
   const printReceiptForInstallment = (q, inst, txn, idx) => openOrDownload(receiptHtmlInstallment(q, inst, txn, idx), `ใบเสร็จ_${q.quotationNo || 'RC'}.html`);
 
   // สร้าง HTML ใบเสร็จ "ยอดรวม" จากรายการรับเงินที่ส่งเข้ามา (qTxns)
-  const receiptHtmlTotal = (q, qTxns) => {
+  const receiptHtmlTotal = (q, qTxns, lng = lang, hideBtn = false) => {
     // เรียงตามลำดับงวด (งวด 1 อยู่บนสุด) ไม่ใช่ตามวันที่รับเงิน
     const ordered = [];
     const used = new Set();
@@ -1098,7 +1102,7 @@ export default function QuotationSystem() {
     return buildReceiptHTML({
       company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
       receiptNo: `${q.quotationNo || 'RC'}-RT`,
-      rows, amount: sum, amountWords: words(sum), dateStr: formatDate(latest), slips: slipsArr, lang, kind: 'total', whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'),
+      rows, amount: sum, amountWords: words(sum, lng), dateStr: formatDate(latest), slips: slipsArr, lang: lng, kind: 'total', whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), hideBtn,
     });
   };
   const printReceiptTotal = (q) => {
@@ -1109,6 +1113,37 @@ export default function QuotationSystem() {
 
   // ลิงก์ใบเสร็จสำหรับส่งลูกค้า (?receipt=<id> หรือ &inst=<idx>)
   const receiptUrl = (q, instIdx) => { const s = linkSlug(q); return `${window.location.origin}${window.location.pathname}?receipt=${q.id}${instIdx != null ? `&inst=${instIdx}` : ''}${s ? `&n=${s}` : ''}`; };
+
+  // เปิดหน้า review ใบเสร็จ + สร้าง HTML ตามภาษาที่เลือก
+  const openReceiptReview = (q, idx) => { setReceiptReviewLang(lang); setReceiptReview({ q, idx }); };
+  const buildReviewReceiptHtml = (rv, lng) => {
+    if (!rv) return '';
+    const q = rv.q;
+    const qTxns = transactions.filter((t) => t.type === 'in' && t.quotationId === q.id);
+    if (rv.idx == null) return receiptHtmlTotal(q, qTxns, lng, true);
+    const inst = (q.installments || [])[rv.idx];
+    const txn = inst && qTxns.find((t) => (t.installment || '').trim() === (inst.name || '').trim());
+    if (!inst || !txn) return '';
+    return receiptHtmlInstallment(q, inst, txn, rv.idx, lng, true);
+  };
+  const ReceiptReviewOverlay = () => {
+    if (!receiptReview) return null;
+    const rv = receiptReview;
+    const html = buildReviewReceiptHtml(rv, receiptReviewLang);
+    const title = rv.idx == null ? t('receiptTotalBtn') : `${bi('ใบเสร็จงวด', 'Receipt')} ${rv.idx + 1}`;
+    return (
+      <div className="fixed inset-0 z-[55] bg-stone-200 flex flex-col" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+        <div className="bg-white border-b border-stone-300 shadow-sm px-3 py-2 flex items-center gap-2 flex-wrap">
+          <button onClick={() => setReceiptReview(null)} className="flex items-center gap-1 px-3 py-2 text-stone-700 hover:bg-stone-100 rounded-lg text-sm"><ArrowLeft size={18} /> {bi('ปิด', 'Close')}</button>
+          <span className="font-semibold text-stone-700 truncate flex-1 min-w-0 text-sm">{title} · {rv.q.quotationNo}</span>
+          <button onClick={() => setReceiptReviewLang((l) => (l === 'th' ? 'en' : 'th'))} className="flex items-center gap-1 px-3 py-2 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-lg text-sm">🌐 {receiptReviewLang === 'th' ? 'English' : 'ไทย'}</button>
+          <button onClick={() => { setLinkCopied(false); setReceiptLink({ url: receiptUrl(rv.q, rv.idx == null ? undefined : rv.idx), title: `${title} · ${rv.q.quotationNo || ''}` }); }} className="flex items-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"><Share2 size={16} /> {bi('สร้างลิงก์', 'Share link')}</button>
+          <button onClick={() => { try { receiptReviewRef.current?.contentWindow?.focus(); receiptReviewRef.current?.contentWindow?.print(); } catch { /* ignore */ } }} className="flex items-center gap-1 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-sm"><Download size={16} /> {bi('บันทึก PDF', 'Save PDF')}</button>
+        </div>
+        <iframe ref={receiptReviewRef} title="receipt-review" srcDoc={html} className="flex-1 w-full border-0 bg-white" />
+      </div>
+    );
+  };
 
   // ออกใบวางบิลของงวด (ขอเก็บเงินก่อนชำระ)
   const printBillForInstallment = (q, inst, idx) => {
@@ -1153,10 +1188,7 @@ export default function QuotationSystem() {
               <span className="font-bold text-emerald-700">{baht(totalReceived)} / {baht(Number(q.total) || 0)} ฿</span>
             </div>
             {totalReceived > 0 && (
-              <div className="flex gap-2">
-                <button onClick={() => printReceiptTotal(q)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-200 rounded-lg font-semibold text-sm"><Printer size={16} /> {t('receiptTotalBtn')} ({baht(totalReceived)} ฿)</button>
-                <button onClick={() => { setLinkCopied(false); setReceiptLink({ url: receiptUrl(q), title: `${t('receiptTotalBtn')} · ${q.quotationNo || ''}` }); }} className="flex items-center justify-center gap-1 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm whitespace-nowrap" title={bi('ลิงก์ส่งลูกค้า', 'Share link')}><Share2 size={16} /> {bi('ลิงก์', 'Link')}</button>
-              </div>
+              <button onClick={() => openReceiptReview(q, null)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-200 rounded-lg font-semibold text-sm"><Printer size={16} /> {t('receiptTotalBtn')} ({baht(totalReceived)} ฿)</button>
             )}
             {insts.length === 0 ? (
               <p className="text-center text-stone-400 py-6">{t('noInstallments')}</p>
@@ -1178,8 +1210,7 @@ export default function QuotationSystem() {
                         {txn.slip && <img src={txn.slip} alt="slip" className="w-9 h-9 rounded object-cover border border-stone-200" />}
                         <button onClick={() => openTxn('in', txn)} className="flex items-center gap-1 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-sm whitespace-nowrap"><Pencil size={14} /> {bi('แก้ไข', 'Edit')}</button>
                         <button onClick={() => printBillForInstallment(q, inst, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-stone-300 text-stone-700 rounded-lg text-sm whitespace-nowrap"><FileText size={14} /> {t('billBtn')}</button>
-                        <button onClick={() => printReceiptForInstallment(q, inst, txn, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-slate-900 text-amber-200 rounded-lg text-sm whitespace-nowrap"><Printer size={14} /> {t('receiptBtn')}</button>
-                        <button onClick={() => { setLinkCopied(false); setReceiptLink({ url: receiptUrl(q, idx), title: `${bi('ใบเสร็จงวด', 'Receipt installment')} ${idx + 1} · ${q.quotationNo || ''}` }); }} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm whitespace-nowrap" title={bi('ลิงก์ส่งลูกค้า', 'Share link')}><Share2 size={14} /> {bi('ลิงก์', 'Link')}</button>
+                        <button onClick={() => openReceiptReview(q, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-slate-900 text-amber-200 rounded-lg text-sm whitespace-nowrap"><Printer size={14} /> {t('receiptBtn')}</button>
                       </div>
                     </div>
                   ) : (
@@ -2022,6 +2053,7 @@ export default function QuotationSystem() {
       <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
         <PaymentsModal />
         <ShareLinkModal />
+        <ReceiptReviewOverlay />
         <ReceiptLinkModal />
         <TxnModal />
         <style>{`
