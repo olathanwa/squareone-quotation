@@ -2178,13 +2178,14 @@ export default function QuotationSystem() {
                     const st = qStatus(q);
                     return (
                     <tr key={q.id} className="border-b border-stone-100 hover:bg-stone-50">
-                      <td className="px-4 py-3 font-mono text-sm whitespace-nowrap" title={q.quotationNo}>#{(() => { const s = String(q.quotationNo || ''); const i = s.lastIndexOf('-'); return i === -1 ? s : s.slice(i + 1); })()}</td>
-                      <td className="px-4 py-3 font-semibold">
-                        <span className={st.key === 'paid' ? 'text-emerald-600' : st.key === 'partial' ? 'text-amber-500' : 'text-stone-900'}>{q.customerName}</span>
-                        {q.project && <div className="md:hidden text-xs font-normal text-stone-500 mt-0.5">📋 {q.project}</div>}
-                        {(() => { const ws = QSTATUS[q.status] || QSTATUS.open; return <div className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${ws.cls}`}>{lang === 'en' ? ws.en : ws.th}</div>; })()}
+                      <td className="px-4 py-3 align-top whitespace-nowrap" title={q.quotationNo}>
+                        <span className={`font-mono text-sm ${st.key === 'paid' ? 'bg-emerald-100 text-emerald-800 rounded px-1.5 py-0.5' : ''}`}>#{(() => { const s = String(q.quotationNo || ''); const i = s.lastIndexOf('-'); return i === -1 ? s : s.slice(i + 1); })()}</span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-stone-600 hidden md:table-cell max-w-xs truncate">{q.project}</td>
+                      <td className="px-4 py-3 font-semibold align-top">
+                        <span className={st.key === 'paid' ? 'bg-emerald-100 text-emerald-800 rounded px-1.5 py-0.5' : st.key === 'partial' ? 'text-amber-500' : 'text-stone-900'}>{q.customerName}</span>
+                        {q.project && <div className="md:hidden text-xs font-normal mt-1"><span className={st.key === 'paid' ? 'bg-emerald-100 text-emerald-800 rounded px-1.5 py-0.5' : 'text-stone-500'}>📋 {q.project}</span></div>}
+                      </td>
+                      <td className="px-4 py-3 text-sm hidden md:table-cell max-w-xs">{q.project ? <span className={`inline-block max-w-full truncate align-bottom ${st.key === 'paid' ? 'bg-emerald-100 text-emerald-800 rounded px-2 py-0.5' : 'text-stone-600'}`}>{q.project}</span> : null}</td>
                       <td className="px-4 py-3 text-sm text-stone-600 hidden sm:table-cell">{formatDate(q.date)}</td>
                       <td className="px-4 py-3 text-right font-semibold text-emerald-700">{Number(q.total || 0).toLocaleString('th-TH')} ฿</td>
                       <td className="px-4 py-3 text-center">
