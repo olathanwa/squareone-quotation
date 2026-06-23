@@ -1882,6 +1882,15 @@ export default function QuotationSystem() {
     transactions.filter((t) => t.type === 'in' && t.quotationId).forEach((t) => { receivedByQ[t.quotationId] = (receivedByQ[t.quotationId] || 0) + (Number(t.amount) || 0); });
     const projRows = quotations.map((q) => ({ q, received: receivedByQ[q.id] || 0, outstanding: (Number(q.total) || 0) - (receivedByQ[q.id] || 0) })).filter((r) => (Number(r.q.total) || 0) > 0);
     const totalOutstanding = projRows.reduce((s, r) => s + Math.max(0, r.outstanding), 0);
+    // สรุปหัก ณ ที่จ่าย 3% ของปีที่เลือก (จากยอดที่รับจริงของใบที่เปิด WHT)
+    const whtRows = quotations.map((q) => {
+      const wm = q.whtMode || (q.withholdingTax ? 'deduct' : 'none');
+      if (wm === 'none') return null;
+      const recvYear = transactions.filter((t) => t.type === 'in' && t.quotationId === q.id && yOf(t.date) === selYear).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+      if (recvYear <= 0) return null;
+      return { q, recv: recvYear, wht: recvYear * 0.03, mode: wm };
+    }).filter(Boolean).sort((a, b) => b.wht - a.wht);
+    const totalWht = whtRows.reduce((s, r) => s + r.wht, 0);
     const years = Array.from(new Set([String(nowD.getFullYear()), ...transactions.map((t) => yOf(t.date)).filter(Boolean)])).sort().reverse();
     const monthly = periodMode === 'year' ? Array.from({ length: 12 }, (_, i) => {
       const ym = `${selYear}-${String(i + 1).padStart(2, '0')}`;
@@ -1961,6 +1970,32 @@ export default function QuotationSystem() {
             <div className="bg-white border border-stone-200 rounded-lg p-4"><p className="text-stone-500 text-sm">{t('net')}</p><p className={`text-2xl font-bold mt-1 ${net >= 0 ? 'text-slate-900' : 'text-rose-700'}`}>{baht(net)} ฿</p></div>
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4"><p className="text-amber-800 text-sm">{t('outstanding')}</p><p className="text-2xl font-bold text-amber-700 mt-1">{baht(totalOutstanding)} ฿</p></div>
           </div>
+
+          {/* สรุปหัก ณ ที่จ่าย 3% รายปี */}
+          {whtRows.length > 0 && (
+            <div className="bg-white border border-stone-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <p className="font-semibold text-stone-800 flex items-center gap-2"><FileText size={16} className="text-slate-700" /> {bi('สรุปหัก ณ ที่จ่าย 3%', 'Withholding tax 3% summary')} · {bi('ปี', 'Year')} {yearDisp(selYear)}</p>
+                <span className="text-lg font-bold text-emerald-700">{bi('รวมถูกหัก', 'Total withheld')} {baht(totalWht)} ฿</span>
+              </div>
+              <p className="text-xs text-stone-500 mb-3">{bi('ประมาณการ 3% จากยอดที่รับจริง ของใบที่เปิดหัก ณ ที่จ่าย — ใช้อ้างอิงตอนยื่นภาษี/เทียบหนังสือรับรอง', 'Estimated 3% of received amounts on WHT-enabled quotations — for tax filing / cross-check with certificates')}</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[440px]">
+                  <thead><tr className="text-stone-500 border-b border-stone-200"><th className="text-left py-2">{bi('ลูกค้า / โครงการ', 'Customer / Project')}</th><th className="text-right py-2">{bi('ยอดที่รับ', 'Received')}</th><th className="text-right py-2">{bi('หัก 3%', 'WHT 3%')}</th></tr></thead>
+                  <tbody>
+                    {whtRows.map((r) => (
+                      <tr key={r.q.id} className="border-b border-stone-100">
+                        <td className="py-2"><span className="font-medium text-stone-800">{r.q.customerName || t('noName')}</span><span className="text-stone-400">{r.q.project ? ' · ' + r.q.project : ''}</span></td>
+                        <td className="py-2 text-right text-stone-600">{baht(r.recv)}</td>
+                        <td className="py-2 text-right font-semibold text-emerald-700">{baht(Math.round(r.wht * 100) / 100)}</td>
+                      </tr>
+                    ))}
+                    <tr className="font-bold"><td className="py-2 text-right">{bi('รวม', 'Total')}</td><td className="py-2 text-right">{baht(whtRows.reduce((s, r) => s + r.recv, 0))}</td><td className="py-2 text-right text-emerald-700">{baht(Math.round(totalWht * 100) / 100)}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* สรุปรายเดือน (เฉพาะมุมมองรายปี) */}
           {monthly && (
