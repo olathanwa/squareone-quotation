@@ -377,6 +377,10 @@ export default function QuotationSystem() {
   // ===== ระบบการเงิน (รายรับ-รายจ่าย + สรุปยอด) =====
   const [transactions, setTransactions] = useState([]);
   const [txnForm, setTxnForm] = useState(null);   // null = ปิด, object = เปิดฟอร์ม
+  // ===== ปฏิทินนัดตรวจ =====
+  const [appts, setAppts] = useState([]);
+  const [apptForm, setApptForm] = useState(null); // null = ปิด, object = เปิดฟอร์มนัด
+  const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }); // เดือนที่กำลังดู YYYY-MM
   const [txnBusy, setTxnBusy] = useState(false);
   const [periodMode, setPeriodMode] = useState('month'); // 'month' | 'year' | 'all'
   const nowD = new Date();
@@ -543,6 +547,17 @@ export default function QuotationSystem() {
         }
       } catch (e) { console.log('No transactions yet'); }
 
+      // โหลดนัดตรวจจากคลาวด์
+      try {
+        const apRes = await window.storage.list('appt:');
+        if (apRes && apRes.keys && apRes.keys.length > 0) {
+          const apItems = await Promise.all(apRes.keys.map(async (key) => {
+            try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : null; } catch { return null; }
+          }));
+          setAppts(apItems.filter(Boolean).sort((a, b) => (a.date || '').localeCompare(b.date || '')));
+        }
+      } catch (e) { console.log('No appointments yet'); }
+
       setLoading(false);
     };
     loadData();
@@ -704,6 +719,53 @@ export default function QuotationSystem() {
     setTxnBusy(true);
     try { const img = await compressImage(file); setTxnForm((p) => ({ ...p, slip: img })); }
     catch (err) { console.error(err); } finally { setTxnBusy(false); if (e.target) e.target.value = ''; }
+  };
+
+  // ===== จัดการนัดตรวจ (ปฏิทิน) =====
+  const newAppt = (dateStr) => ({
+    id: 'appt-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    date: dateStr || new Date().toISOString().split('T')[0], time: '', title: '',
+    customerName: '', address: '', quotationId: '', note: '',
+  });
+  const openAppt = (existing, dateStr) => setApptForm(existing ? { ...existing } : newAppt(dateStr));
+  const saveAppt = async () => {
+    const f = apptForm;
+    if (!f || !f.date || !(f.title || '').trim()) { alert('กรุณากรอกวันที่และชื่อนัด'); return; }
+    try {
+      const data = { ...f, title: f.title.trim(), savedAt: new Date().toISOString() };
+      await window.storage.set('appt:' + data.id, JSON.stringify(data));
+      setAppts((prev) => {
+        const ex = prev.some((a) => a.id === data.id);
+        const next = ex ? prev.map((a) => (a.id === data.id ? data : a)) : [...prev, data];
+        return next.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+      });
+      setApptForm(null);
+    } catch (e) { console.error(e); alert('บันทึกนัดไม่สำเร็จ'); }
+  };
+  const deleteAppt = async (id) => {
+    if (!window.confirm('ลบนัดนี้?')) return;
+    try { await window.storage.delete('appt:' + id); setAppts((prev) => prev.filter((a) => a.id !== id)); setApptForm(null); }
+    catch (e) { console.error(e); alert('ลบไม่สำเร็จ'); }
+  };
+  // ลิงก์เพิ่มนัดลง Google Calendar (เปิดหน้าสร้างอีเวนต์พร้อมข้อมูล)
+  const googleCalUrl = (a) => {
+    if (!a || !a.date) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    const fmtT = (dt) => `${dt.getFullYear()}${pad(dt.getMonth() + 1)}${pad(dt.getDate())}T${pad(dt.getHours())}${pad(dt.getMinutes())}00`;
+    const fmtD = (dt) => `${dt.getFullYear()}${pad(dt.getMonth() + 1)}${pad(dt.getDate())}`;
+    let dates;
+    if (a.time) {
+      const start = new Date(`${a.date}T${a.time}:00`);
+      const end = new Date(start.getTime() + 60 * 60 * 1000);
+      dates = `${fmtT(start)}/${fmtT(end)}`;
+    } else {
+      const start = new Date(`${a.date}T00:00:00`);
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      dates = `${fmtD(start)}/${fmtD(end)}`;
+    }
+    const q = (s) => encodeURIComponent(s || '');
+    const details = [a.customerName, a.note].filter(Boolean).join(' · ');
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${q(a.title)}&dates=${dates}&details=${q(details)}&location=${q(a.address)}`;
   };
 
   const saveSettings = async () => {
@@ -1621,6 +1683,136 @@ export default function QuotationSystem() {
     );
   }
 
+  // ===== หน้าปฏิทินนัดตรวจ =====
+  const ApptModal = () => {
+    if (!apptForm) return null;
+    const f = apptForm;
+    const set = (k, v) => setApptForm((p) => ({ ...p, [k]: v }));
+    const editing = appts.some((a) => a.id === f.id);
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={(e) => { if (e.target === e.currentTarget) setApptForm(null); }}>
+        <div className="bg-white w-full sm:max-w-md sm:rounded-xl rounded-t-2xl max-h-[92vh] overflow-y-auto">
+          <div className="sticky top-0 px-5 py-4 flex items-center justify-between text-white bg-slate-900">
+            <h3 className="font-bold text-lg">{editing ? bi('แก้ไขนัด', 'Edit appointment') : bi('เพิ่มนัดตรวจ', 'New appointment')}</h3>
+            <button onClick={() => setApptForm(null)} className="opacity-80 hover:opacity-100"><X size={22} /></button>
+          </div>
+          <div className="p-5 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-sm text-stone-600 mb-1">{bi('วันที่', 'Date')}</label><input type="date" value={f.date} onChange={(e) => set('date', e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded" /></div>
+              <div><label className="block text-sm text-stone-600 mb-1">{bi('เวลา', 'Time')}</label><input type="time" value={f.time} onChange={(e) => set('time', e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded" /></div>
+            </div>
+            <div><label className="block text-sm text-stone-600 mb-1">{bi('หัวข้อนัด', 'Title')}</label><input type="text" value={f.title} onChange={(e) => set('title', e.target.value)} placeholder={bi('เช่น ตรวจบ้านรอบ 1', 'e.g. Inspection round 1')} className="w-full px-3 py-2 border border-stone-300 rounded" /></div>
+            <div><label className="block text-sm text-stone-600 mb-1">{bi('ลูกค้า/โครงการ (จากใบเสนอราคา)', 'Customer/Project')}</label>
+              <select value={f.quotationId} onChange={(e) => { const q = quotations.find((x) => x.id === e.target.value); setApptForm((p) => ({ ...p, quotationId: e.target.value, customerName: q ? (q.customerName || '') : p.customerName, address: q ? (q.address || '') : p.address, title: p.title || (q ? (q.project || '') : '') })); }} className="w-full px-3 py-2 border border-stone-300 rounded bg-white">
+                <option value="">{bi('— ไม่ระบุ —', '— None —')}</option>
+                {quotations.map((q) => <option key={q.id} value={q.id}>{q.customerName || t('noName')}{q.project ? ' (' + q.project + ')' : ''}</option>)}
+              </select>
+            </div>
+            <div><label className="block text-sm text-stone-600 mb-1">{bi('ที่อยู่/สถานที่', 'Address / Location')}</label><input type="text" value={f.address} onChange={(e) => set('address', e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded" /></div>
+            <div><label className="block text-sm text-stone-600 mb-1">{bi('โน้ต', 'Note')}</label><input type="text" value={f.note} onChange={(e) => set('note', e.target.value)} className="w-full px-3 py-2 border border-stone-300 rounded" /></div>
+            {f.date && (f.title || '').trim() && (
+              <a href={googleCalUrl(f)} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-lg font-medium text-sm">
+                <Calendar size={16} /> {bi('เพิ่มลง Google Calendar', 'Add to Google Calendar')}
+              </a>
+            )}
+          </div>
+          <div className="sticky bottom-0 bg-white border-t border-stone-200 p-4 flex gap-2">
+            {editing && <button onClick={() => deleteAppt(f.id)} className="px-4 py-3 bg-white border border-rose-300 text-rose-600 rounded-lg"><Trash2 size={18} /></button>}
+            <button onClick={() => setApptForm(null)} className="flex-1 px-4 py-3 bg-white border border-stone-300 text-stone-700 rounded-lg font-semibold">{t('cancel')}</button>
+            <button onClick={saveAppt} className="flex-1 px-4 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold flex items-center justify-center gap-2"><Save size={18} /> {t('save')}</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (view === 'calendar') {
+    let cy = Number(calMonth.split('-')[0]);
+    let cm = Number(calMonth.split('-')[1]); // 1-12
+    const startDow = new Date(cy, cm - 1, 1).getDay();
+    const daysInMonth = new Date(cy, cm, 0).getDate();
+    const todayStr = new Date().toISOString().split('T')[0];
+    const dateOf = (d) => `${cy}-${String(cm).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const apptsByDate = {};
+    appts.forEach((a) => { (apptsByDate[a.date] = apptsByDate[a.date] || []).push(a); });
+    Object.values(apptsByDate).forEach((arr) => arr.sort((a, b) => (a.time || '').localeCompare(b.time || '')));
+    const cells = [];
+    for (let i = 0; i < startDow; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    const shiftMonth = (delta) => { let y = cy, m = cm + delta; if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } setCalMonth(`${y}-${String(m).padStart(2, '0')}`); };
+    const dow = lang === 'en' ? ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] : ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+    const upcoming = [...appts].filter((a) => a.date >= todayStr).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 10);
+    const fmtDay = (iso) => { const d = new Date(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]}`; };
+    return (
+      <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap'); * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }` + DARK_CSS}</style>
+        <ApptModal />
+        <div className="bg-slate-900 text-stone-50 border-b-4 border-amber-500">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 flex items-center gap-3">
+            <button onClick={() => setView('list')} className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm"><ArrowLeft size={18} /> {t('back')}</button>
+            <div className="flex items-center gap-2"><Calendar size={24} className="text-amber-400" /><h1 className="text-xl font-bold">{bi('ปฏิทินนัดตรวจ', 'Inspection Calendar')}</h1></div>
+            <div className="ml-auto flex items-center gap-2"><ThemeToggle /><LangToggle /></div>
+          </div>
+        </div>
+        <div className="max-w-5xl mx-auto px-3 sm:px-6 py-6">
+          <div className="flex items-center justify-between mb-4">
+            <button onClick={() => shiftMonth(-1)} className="px-3 py-2 bg-white border border-stone-300 rounded-lg hover:bg-stone-50">‹</button>
+            <h2 className="text-lg font-bold text-stone-800">{MONTHS[cm - 1]} {lang === 'en' ? cy : cy + 543}</h2>
+            <button onClick={() => shiftMonth(1)} className="px-3 py-2 bg-white border border-stone-300 rounded-lg hover:bg-stone-50">›</button>
+          </div>
+          <div className="flex gap-2 mb-4">
+            <button onClick={() => { const d = new Date(); setCalMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }} className="px-3 py-2 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-lg text-sm">{bi('วันนี้', 'Today')}</button>
+            <button onClick={() => openAppt(null, todayStr)} className="flex items-center gap-1 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-sm font-semibold ml-auto"><Plus size={16} /> {bi('เพิ่มนัด', 'Add')}</button>
+          </div>
+          <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
+            <div className="grid grid-cols-7 text-center text-xs font-semibold text-stone-500 bg-stone-50 border-b border-stone-200">
+              {dow.map((d, i) => <div key={i} className={`py-2 ${i === 0 ? 'text-rose-500' : ''}`}>{d}</div>)}
+            </div>
+            <div className="grid grid-cols-7">
+              {cells.map((d, i) => {
+                if (d == null) return <div key={i} className="min-h-[72px] border-b border-r border-stone-100 bg-stone-50/50" />;
+                const iso = dateOf(d);
+                const dayAppts = apptsByDate[iso] || [];
+                const isToday = iso === todayStr;
+                return (
+                  <div key={i} onClick={() => openAppt(null, iso)} className="min-h-[72px] border-b border-r border-stone-100 p-1 cursor-pointer hover:bg-emerald-50 align-top">
+                    <div className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-emerald-700 text-white' : (i % 7 === 0 ? 'text-rose-500' : 'text-stone-600')}`}>{d}</div>
+                    <div className="space-y-0.5 mt-0.5">
+                      {dayAppts.slice(0, 3).map((a) => (
+                        <div key={a.id} onClick={(e) => { e.stopPropagation(); openAppt(a); }} className="text-[10px] leading-tight bg-amber-100 text-amber-800 rounded px-1 py-0.5 truncate hover:bg-amber-200" title={`${a.time || ''} ${a.title}`}>{a.time ? a.time + ' ' : ''}{a.title}</div>
+                      ))}
+                      {dayAppts.length > 3 && <div className="text-[10px] text-stone-400 px-1">+{dayAppts.length - 3}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {/* รายการนัดที่กำลังจะถึง */}
+          <div className="mt-6">
+            <h3 className="font-semibold text-stone-800 mb-2">{bi('นัดที่กำลังจะถึง', 'Upcoming')}</h3>
+            {upcoming.length === 0 ? <p className="text-stone-400 text-sm py-4">{bi('ยังไม่มีนัด', 'No appointments')}</p> : (
+              <div className="space-y-2">
+                {upcoming.map((a) => (
+                  <div key={a.id} onClick={() => openAppt(a)} className="bg-white border border-stone-200 rounded-lg p-3 flex items-center gap-3 cursor-pointer hover:border-emerald-300">
+                    <div className="flex-shrink-0 w-14 text-center bg-emerald-50 rounded-lg py-1">
+                      <div className="text-xs text-emerald-700">{a.date === todayStr ? bi('วันนี้', 'Today') : fmtDay(a.date)}</div>
+                      <div className="text-sm font-bold text-emerald-800">{a.time || '—'}</div>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-stone-800 truncate">{a.title}</p>
+                      <p className="text-xs text-stone-500 truncate">{[a.customerName, a.address].filter(Boolean).join(' · ') || a.note}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (view === 'finance') {
     const inPeriod = (t) => {
       if (periodMode === 'all') return true;
@@ -2080,6 +2272,9 @@ export default function QuotationSystem() {
                 <button onClick={() => setView('finance')} className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-lg text-sm font-semibold">
                   <Wallet size={16} /> {t('financeSummary')}
                 </button>
+                <button onClick={() => setView('calendar')} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-amber-500/30 text-amber-200 rounded-lg text-sm">
+                  <Calendar size={16} /> {bi('ปฏิทินนัด', 'Calendar')}
+                </button>
                 <button onClick={() => { setSettingsForm(settings); setShowSettings(true); }} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-amber-500/30 text-amber-200 rounded-lg text-sm">
                   <Settings size={16} /> {t('settings')}
                 </button>
@@ -2106,6 +2301,9 @@ export default function QuotationSystem() {
             </button>
             <button onClick={() => setView('finance')} className="md:hidden flex items-center justify-center gap-2 px-4 py-3 bg-amber-500 text-slate-900 rounded-lg font-semibold">
               <Wallet size={18} /> {t('financeSummary')}
+            </button>
+            <button onClick={() => setView('calendar')} className="md:hidden flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 text-amber-200 rounded-lg font-semibold">
+              <Calendar size={18} /> {bi('ปฏิทินนัด', 'Calendar')}
             </button>
             <div className="flex-1 relative">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
