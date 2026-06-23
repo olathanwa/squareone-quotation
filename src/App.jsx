@@ -1813,6 +1813,61 @@ export default function QuotationSystem() {
     );
   }
 
+  // ===== หน้าตามเก็บเงินค้าง =====
+  if (view === 'followup') {
+    const recvBy = {};
+    transactions.filter((t) => t.type === 'in' && t.quotationId).forEach((t) => { recvBy[t.quotationId] = (recvBy[t.quotationId] || 0) + (Number(t.amount) || 0); });
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const owing = quotations.map((q) => {
+      const rec = recvBy[q.id] || 0; const tot = Number(q.total) || 0; const out = tot - rec;
+      const days = q.date ? Math.max(0, Math.floor((today - new Date(`${q.date}T00:00:00`)) / 86400000)) : 0;
+      return { q, rec, tot, out, days };
+    }).filter((r) => r.out > 0.5).sort((a, b) => b.days - a.days);
+    const totalOwing = owing.reduce((s, r) => s + r.out, 0);
+    const sevCls = (d) => (d >= 30 ? 'bg-rose-100 text-rose-700' : d >= 14 ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-600');
+    return (
+      <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap'); * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }` + DARK_CSS}</style>
+        <PaymentsModal />
+        <TxnModal />
+        <div className="bg-slate-900 text-stone-50 border-b-4 border-amber-500">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 flex items-center gap-3">
+            <button onClick={() => setView('list')} className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm"><ArrowLeft size={18} /> {t('back')}</button>
+            <div className="flex items-center gap-2"><Wallet size={24} className="text-amber-400" /><h1 className="text-xl font-bold">{bi('ตามเก็บเงินค้าง', 'Outstanding follow-up')}</h1></div>
+          </div>
+        </div>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5 flex items-center justify-between">
+            <span className="text-amber-900 font-medium">{bi('ค้างรับทั้งหมด', 'Total outstanding')} · {owing.length} {bi('ราย', 'items')}</span>
+            <span className="text-2xl font-bold text-amber-700">{baht(totalOwing)} ฿</span>
+          </div>
+          {owing.length === 0 ? (
+            <p className="text-center text-stone-400 py-12">🎉 {bi('ไม่มีงานค้างรับ', 'No outstanding payments')}</p>
+          ) : (
+            <div className="space-y-2">
+              {owing.map((r) => (
+                <div key={r.q.id} className="bg-white border border-stone-200 rounded-lg p-3 flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${sevCls(r.days)}`}>{bi('ค้างมา', 'overdue')} {r.days} {bi('วัน', 'd')}</span>
+                      <span className="font-semibold text-stone-800 truncate">{r.q.customerName || t('noName')}</span>
+                    </div>
+                    <p className="text-xs text-stone-500 truncate mt-0.5">{r.q.quotationNo}{r.q.project ? ' · ' + r.q.project : ''}</p>
+                    <p className="text-xs text-stone-500 mt-0.5">{bi('รับแล้ว', 'received')} {baht(r.rec)} / {baht(r.tot)} ฿</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-rose-600 font-bold whitespace-nowrap">{baht(r.out)} ฿</div>
+                    <button onClick={() => setPaymentQ(r.q)} className="mt-1 flex items-center gap-1 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-sm whitespace-nowrap"><TrendingUp size={14} /> {bi('รับเงิน', 'Collect')}</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (view === 'finance') {
     const inPeriod = (t) => {
       if (periodMode === 'all') return true;
@@ -2339,8 +2394,8 @@ export default function QuotationSystem() {
               <p className="text-stone-500 text-sm flex items-center gap-1.5"><TrendingUp size={15} className="text-emerald-600" /> {t('incomeThisMonth')}</p>
               <p className="text-2xl font-bold text-emerald-700 mt-1">{baht(incomeThisMonth)} ฿</p>
             </button>
-            <button onClick={() => setView('finance')} className="text-left bg-amber-50 border border-amber-200 rounded-lg p-4 border-l-4 border-l-amber-500 hover:border-amber-300 transition">
-              <p className="text-amber-800 text-sm flex items-center gap-1.5"><Wallet size={15} /> {t('outstandingShort')}</p>
+            <button onClick={() => setView('followup')} className="text-left bg-amber-50 border border-amber-200 rounded-lg p-4 border-l-4 border-l-amber-500 hover:border-amber-300 transition">
+              <p className="text-amber-800 text-sm flex items-center gap-1.5"><Wallet size={15} /> {t('outstandingShort')} <span className="text-xs text-amber-600">({bi('กดตามเก็บ', 'follow up')})</span></p>
               <p className="text-2xl font-bold text-amber-700 mt-1">{baht(totalOutstanding)} ฿</p>
             </button>
           </div>
