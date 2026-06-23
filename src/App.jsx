@@ -251,7 +251,7 @@ const buildFinanceReportHTML = ({ companyName, periodLabel, totalIn, totalOut, n
 };
 
 // ใบเสร็จรับเงิน (เฉพาะงวด หรือ ยอดรวม) — จัดหน้า A4 พิมพ์ได้
-const buildReceiptHTML = ({ company, customer, project, quotationNo, receiptNo, rows, itemName, amount, amountWords, dateStr, method, slips, slip, lang, kind, whtMode, hideBtn }) => {
+const buildReceiptHTML = ({ company, customer, project, quotationNo, receiptNo, rows, itemName, amount, amountWords, dateStr, method, slips, slip, lang, kind, whtMode, hideBtn, stamp }) => {
   const en = lang === 'en';
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
   const n2 = (n) => (Number(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -315,12 +315,13 @@ ${whtMode === 'deduct' ? `<tr><td colspan="4" class="lbl" style="text-align:righ
 </tbody></table>
 ${amountWords ? `<div class="words">(${esc(amountWords)})</div>` : ''}
 ${slipArr.length ? `<div class="slips"><div class="cap">${L.slip}</div><div class="imgs">${slipArr.map((s) => `<img src="${s}"/>`).join('')}</div></div>` : ''}
+${stamp ? `<div style="margin-top:28px;text-align:right"><img src="${stamp}" style="height:104px;width:auto;object-fit:contain"/></div>` : ''}
 </div>
 </body></html>`;
 };
 
 // ใบวางบิล/วางบิลรายงวด (ขอเก็บเงินก่อนชำระ) — พิมพ์ได้ กระดาษขาว
-const buildBillHTML = ({ company, customer, customerAddress, project, quotationNo, billNo, itemName, amount, amountWords, dateStr, bankInfo, showQR, lang, whtMode }) => {
+const buildBillHTML = ({ company, customer, customerAddress, project, quotationNo, billNo, itemName, amount, amountWords, dateStr, bankInfo, showQR, lang, whtMode, stamp }) => {
   const en = lang === 'en';
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
   const n2 = (n) => (Number(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -360,6 +361,7 @@ ${amountWords ? `<tr><td colspan="2" style="text-align:right;font-style:italic">
   ${showQR ? `<img class="qr" src="${QR_CODE_DATA}" alt="Thai QR Payment"/>` : ''}
   <div><div style="font-weight:700;margin-bottom:4px">${L.pay}</div>${bankInfo ? `<div>${esc(bankInfo)}</div>` : ''}<div class="muted" style="margin-top:6px">${L.note}</div></div>
 </div>
+${stamp ? `<div style="margin-top:18px;text-align:left"><img src="${stamp}" style="height:96px;width:auto;object-fit:contain"/></div>` : ''}
 <div class="sign"><div>........................................<br>${L.issuer}</div><div>........................................<br>${L.receiver}</div></div>
 </body></html>`;
 };
@@ -603,7 +605,7 @@ export default function QuotationSystem() {
         setReceiptShareState('ready');
       } catch (e) { console.error(e); setReceiptShareState('notfound'); }
     })();
-  }, []);
+  }, [settings]); // สร้างใหม่เมื่อ settings (เช่น ตราประทับ) โหลดเสร็จ
 
   // ย่อใบเสนอราคา (กว้าง A4 = 210mm) ให้พอดีความกว้างจอ เพื่อให้บนลิงก์เห็นทั้งหน้าเหมือน PDF
   useEffect(() => {
@@ -719,6 +721,12 @@ export default function QuotationSystem() {
     setTxnBusy(true);
     try { const img = await compressImage(file); setTxnForm((p) => ({ ...p, slip: img })); }
     catch (err) { console.error(err); } finally { setTxnBusy(false); if (e.target) e.target.value = ''; }
+  };
+  // อัปโหลดรูปตราประทับ/ลายเซ็นบริษัท (เก็บใน settings)
+  const pickStamp = async (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    try { const img = await compressImage(file); setSettingsForm((p) => ({ ...p, stampImage: img })); }
+    catch (err) { console.error(err); } finally { if (e.target) e.target.value = ''; }
   };
 
   // ===== จัดการนัดตรวจ (ปฏิทิน) =====
@@ -1142,7 +1150,7 @@ export default function QuotationSystem() {
       company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
       receiptNo: `${q.quotationNo || 'RC'}-R${idx + 1}`,
       rows: [{ name: inst.name, amount: amt, date: formatDate(txn.date), method: txn.method }],
-      amount: amt, amountWords: words(amt, lng), dateStr: formatDate(txn.date), slips: txn.slip ? [txn.slip] : [], lang: lng, kind: 'inst', whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), hideBtn,
+      amount: amt, amountWords: words(amt, lng), dateStr: formatDate(txn.date), slips: txn.slip ? [txn.slip] : [], lang: lng, kind: 'inst', whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), hideBtn, stamp: settings.stampImage,
     });
   };
   const printReceiptForInstallment = (q, inst, txn, idx) => openOrDownload(receiptHtmlInstallment(q, inst, txn, idx), `ใบเสร็จ_${q.quotationNo || 'RC'}.html`);
@@ -1164,7 +1172,7 @@ export default function QuotationSystem() {
     return buildReceiptHTML({
       company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
       receiptNo: `${q.quotationNo || 'RC'}-RT`,
-      rows, amount: sum, amountWords: words(sum, lng), dateStr: formatDate(latest), slips: slipsArr, lang: lng, kind: 'total', whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), hideBtn,
+      rows, amount: sum, amountWords: words(sum, lng), dateStr: formatDate(latest), slips: slipsArr, lang: lng, kind: 'total', whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), hideBtn, stamp: settings.stampImage,
     });
   };
   const printReceiptTotal = (q) => {
@@ -1215,7 +1223,7 @@ export default function QuotationSystem() {
       customer: q.customerName, customerAddress: q.address, project: q.project, quotationNo: q.quotationNo,
       billNo: `${q.quotationNo || 'INV'}-B${idx + 1}`,
       itemName: inst.name, amount: amt, amountWords: numberToThaiWords(amt),
-      dateStr: formatDate(new Date().toISOString().slice(0, 10)), bankInfo: q.bankInfo, showQR: q.showQR !== false, lang, whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'),
+      dateStr: formatDate(new Date().toISOString().slice(0, 10)), bankInfo: q.bankInfo, showQR: q.showQR !== false, lang, whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), stamp: settings.stampImage,
     });
     const w = window.open('', '_blank');
     if (w) { w.document.write(html); w.document.close(); }
@@ -1465,6 +1473,25 @@ export default function QuotationSystem() {
                   />
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* ตราประทับ / ลายเซ็น */}
+          <div className="border border-stone-300 rounded-lg p-4">
+            <h4 className="font-semibold text-stone-900 mb-3 flex items-center gap-2">🖋️ {bi('ตราประทับ / ลายเซ็นบริษัท', 'Company Stamp / Signature')}</h4>
+            <p className="text-xs text-stone-500 mb-3">{bi('อัปโหลดรูปตราประทับหรือลายเซ็น (แนะนำ PNG พื้นหลังโปร่ง) — จะแสดงบนใบเสนอราคา/ใบเสร็จ/ใบวางบิล', 'Upload a stamp or signature image (PNG with transparent background recommended) — shown on quotation/receipt/invoice')}</p>
+            <div className="flex items-center gap-3">
+              {settingsForm.stampImage ? (
+                <div className="flex items-center gap-3">
+                  <img src={settingsForm.stampImage} alt="stamp" className="w-24 h-24 object-contain border border-stone-200 rounded bg-white" />
+                  <button onClick={() => setSettingsForm({ ...settingsForm, stampImage: null })} className="px-3 py-2 bg-white border border-rose-300 text-rose-600 rounded-lg text-sm">{bi('ลบรูป', 'Remove')}</button>
+                </div>
+              ) : (
+                <label className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-dashed border-stone-300 hover:border-emerald-500 text-stone-600 rounded-lg text-sm cursor-pointer">
+                  <Paperclip size={16} /> {bi('เลือกรูปตราประทับ/ลายเซ็น', 'Choose stamp/signature image')}
+                  <input type="file" accept="image/*" onChange={pickStamp} className="hidden" />
+                </label>
+              )}
             </div>
           </div>
 
@@ -2309,6 +2336,7 @@ export default function QuotationSystem() {
             </div>
 
             <div className="mt-6 pt-4 border-t border-stone-300 text-center">
+              {settings.stampImage && <img src={settings.stampImage} alt="stamp" className="mx-auto mb-2 h-24 w-auto object-contain" />}
               <p className="font-semibold">{dl('ขอขอบพระคุณที่ท่านให้ความสนใจในบริการของทีมงาน', 'Thank you for considering our services')}</p>
               <p className="text-stone-700 italic">SQUAREONE DESIGN AND INSPECTOR</p>
             </div>
