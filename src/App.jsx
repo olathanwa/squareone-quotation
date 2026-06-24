@@ -992,6 +992,8 @@ export default function QuotationSystem() {
     return [clean(q.project), clean(q.customerName)].filter(Boolean).join('_').slice(0, 50);
   };
   const shareUrl = (q) => { const s = linkSlug(q); return `${window.location.origin}${window.location.pathname}?q=${q.id}${s ? `&n=${s}` : ''}`; };
+  // ลิงก์ส่งข้อความ+ลิงก์เข้า LINE (เปิดแอป LINE พร้อมข้อความ)
+  const lineShareUrl = (text, url) => `https://line.me/R/msg/text/?${encodeURIComponent(`${text || ''}\n${url}`)}`;
   const doCopyLink = () => {
     if (!shareLinkQ) return;
     const url = shareUrl(shareLinkQ);
@@ -1025,9 +1027,12 @@ export default function QuotationSystem() {
             <p className="font-medium text-stone-800">{shareLinkQ.quotationNo} · {shareLinkQ.customerName}</p>
             <p className="text-sm text-stone-500">{bi('ส่งลิงก์นี้ให้ลูกค้า เปิดดู/พิมพ์ใบเสนอราคาได้ (อ่านอย่างเดียว ไม่ต้องใส่รหัส)', 'Send this link to your customer to view/print the quotation (read-only, no password)')}</p>
             <input id="sharelink-input" readOnly value={url} onClick={(e) => e.target.select()} className="w-full px-3 py-2.5 border border-stone-300 rounded-lg bg-stone-50 text-sm text-stone-700 font-mono" />
-            <button onClick={doCopyLink} className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold text-white ${linkCopied ? 'bg-emerald-600' : 'bg-emerald-700 hover:bg-emerald-800'}`}>
-              {linkCopied ? <>✓ {bi('คัดลอกแล้ว', 'Copied')}</> : <><Copy size={18} /> {bi('คัดลอกลิงก์', 'Copy link')}</>}
-            </button>
+            <div className="flex gap-2">
+              <button onClick={doCopyLink} className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold text-white ${linkCopied ? 'bg-emerald-600' : 'bg-emerald-700 hover:bg-emerald-800'}`}>
+                {linkCopied ? <>✓ {bi('คัดลอกแล้ว', 'Copied')}</> : <><Copy size={18} /> {bi('คัดลอกลิงก์', 'Copy link')}</>}
+              </button>
+              <a href={lineShareUrl(`${bi('ใบเสนอราคา', 'Quotation')} ${shareLinkQ.quotationNo || ''} · ${shareLinkQ.customerName || ''}`, url)} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold text-white whitespace-nowrap" style={{ backgroundColor: '#06C755' }}>💬 LINE</a>
+            </div>
             <a href={url} target="_blank" rel="noreferrer" className="block text-center text-sm text-blue-600 hover:underline">{bi('เปิดดูตัวอย่าง (อย่างที่ลูกค้าเห็น)', 'Preview (as the customer sees it)')}</a>
           </div>
         </div>
@@ -1057,9 +1062,12 @@ export default function QuotationSystem() {
             <p className="font-medium text-stone-800">{receiptLink.title}</p>
             <p className="text-sm text-stone-500">{bi('ส่งลิงก์นี้ให้ลูกค้า เปิดดู/พิมพ์ใบเสร็จได้ (อ่านอย่างเดียว ไม่ต้องใส่รหัส)', 'Send this link to your customer to view/print the receipt (read-only, no password)')}</p>
             <input id="receiptlink-input" readOnly value={receiptLink.url} onClick={(e) => e.target.select()} className="w-full px-3 py-2.5 border border-stone-300 rounded-lg bg-stone-50 text-sm text-stone-700 font-mono" />
-            <button onClick={doCopyReceiptLink} className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold text-white ${linkCopied ? 'bg-emerald-600' : 'bg-emerald-700 hover:bg-emerald-800'}`}>
-              {linkCopied ? <>✓ {bi('คัดลอกแล้ว', 'Copied')}</> : <><Copy size={18} /> {bi('คัดลอกลิงก์', 'Copy link')}</>}
-            </button>
+            <div className="flex gap-2">
+              <button onClick={doCopyReceiptLink} className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold text-white ${linkCopied ? 'bg-emerald-600' : 'bg-emerald-700 hover:bg-emerald-800'}`}>
+                {linkCopied ? <>✓ {bi('คัดลอกแล้ว', 'Copied')}</> : <><Copy size={18} /> {bi('คัดลอกลิงก์', 'Copy link')}</>}
+              </button>
+              <a href={lineShareUrl(receiptLink.title, receiptLink.url)} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold text-white whitespace-nowrap" style={{ backgroundColor: '#06C755' }}>💬 LINE</a>
+            </div>
             <a href={receiptLink.url} target="_blank" rel="noreferrer" className="block text-center text-sm text-blue-600 hover:underline">{bi('เปิดดูตัวอย่าง (อย่างที่ลูกค้าเห็น)', 'Preview (as the customer sees it)')}</a>
           </div>
         </div>
