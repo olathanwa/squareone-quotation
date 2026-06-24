@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FileText, Plus, Trash2, Save, ArrowLeft, Printer, Search, Copy, Eye, Calculator, Info, QrCode, Settings, Wallet, TrendingUp, TrendingDown, Calendar, X, Paperclip, Download, Share2, Pencil } from 'lucide-react';
+import { FileText, Plus, Trash2, Save, ArrowLeft, Printer, Search, Copy, Eye, Calculator, Info, QrCode, Settings, Wallet, TrendingUp, TrendingDown, Calendar, X, Paperclip, Download, Share2, Pencil, FolderOpen } from 'lucide-react';
 import { cloudStorage } from './supabase';
 
 // ===== QR Code PromptPay สแควร์วัน อินสเปคเตอร์ =====
@@ -383,6 +383,10 @@ export default function QuotationSystem() {
   const [appts, setAppts] = useState([]);
   const [apptForm, setApptForm] = useState(null); // null = ปิด, object = เปิดฟอร์มนัด
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }); // เดือนที่กำลังดู YYYY-MM
+  // ===== หน้ารวมเอกสารต่อโครงการ + ไฟล์แนบ =====
+  const [projectQid, setProjectQid] = useState(null);
+  const [attachments, setAttachments] = useState([]);
+  const [attachBusy, setAttachBusy] = useState(false);
   const [txnBusy, setTxnBusy] = useState(false);
   const [periodMode, setPeriodMode] = useState('month'); // 'month' | 'year' | 'all'
   const nowD = new Date();
@@ -607,6 +611,12 @@ export default function QuotationSystem() {
     })();
   }, [settings]); // สร้างใหม่เมื่อ settings (เช่น ตราประทับ) โหลดเสร็จ
 
+  // โหลดไฟล์แนบของโครงการเมื่อเข้าหน้ารวมเอกสาร
+  useEffect(() => {
+    if (view !== 'project' || !projectQid) return;
+    (async () => { try { const r = await window.storage.get('attach:' + projectQid); setAttachments(r ? JSON.parse(r.value) : []); } catch { setAttachments([]); } })();
+  }, [view, projectQid]);
+
   // ย่อใบเสนอราคา (กว้าง A4 = 210mm) ให้พอดีความกว้างจอ เพื่อให้บนลิงก์เห็นทั้งหน้าเหมือน PDF
   useEffect(() => {
     if (view !== 'preview') return;
@@ -774,6 +784,28 @@ export default function QuotationSystem() {
     const q = (s) => encodeURIComponent(s || '');
     const details = [a.customerName, a.note].filter(Boolean).join(' · ');
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${q(a.title)}&dates=${dates}&details=${q(details)}&location=${q(a.address)}`;
+  };
+
+  // ===== หน้ารวมเอกสารโครงการ + ไฟล์แนบ =====
+  const openProject = (q) => { setProjectQid(q.id); setView('project'); };
+  const saveAttachments = async (qid, arr) => { try { await window.storage.set('attach:' + qid, JSON.stringify(arr)); } catch (e) { console.error(e); } };
+  const addAttachment = async (e) => {
+    const file = e.target.files?.[0]; if (!file || !projectQid) return;
+    setAttachBusy(true);
+    try {
+      const img = await compressImage(file);
+      const item = { id: 'at-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: file.name || 'ไฟล์', img, addedAt: new Date().toISOString() };
+      const next = [...attachments, item];
+      setAttachments(next);
+      await saveAttachments(projectQid, next);
+    } catch (err) { console.error(err); alert('แนบไฟล์ไม่สำเร็จ'); }
+    finally { setAttachBusy(false); if (e.target) e.target.value = ''; }
+  };
+  const removeAttachment = async (id) => {
+    if (!window.confirm('ลบไฟล์นี้?')) return;
+    const next = attachments.filter((a) => a.id !== id);
+    setAttachments(next);
+    await saveAttachments(projectQid, next);
   };
 
   const saveSettings = async () => {
@@ -1783,6 +1815,87 @@ export default function QuotationSystem() {
     );
   };
 
+  // ===== หน้ารวมเอกสารต่อโครงการ =====
+  if (view === 'project') {
+    const q = quotations.find((x) => x.id === projectQid);
+    if (!q) { return (<div className="min-h-screen flex items-center justify-center bg-stone-100"><button onClick={() => setView('list')} className="px-4 py-2 bg-emerald-700 text-white rounded-lg">{bi('กลับหน้าหลัก', 'Back to home')}</button></div>); }
+    const recv = transactions.filter((t) => t.type === 'in' && t.quotationId === q.id).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const tot = Number(q.total) || 0;
+    const out = Math.max(0, tot - recv);
+    const qAppts = appts.filter((a) => a.quotationId === q.id).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+    const payStatus = tot > 0 && recv >= tot ? bi('จ่ายครบ', 'Paid') : recv > 0 ? bi('จ่ายบางส่วน', 'Partial') : bi('ยังไม่จ่าย', 'Unpaid');
+    return (
+      <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap'); * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }` + DARK_CSS}</style>
+        <PaymentsModal /><TxnModal /><ShareLinkModal /><ReceiptReviewOverlay /><ReceiptLinkModal /><ApptModal />
+        <div className="bg-slate-900 text-stone-50 border-b-4 border-amber-500">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5 flex items-center gap-3">
+            <button onClick={() => setView('list')} className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm"><ArrowLeft size={18} /> {t('back')}</button>
+            <div className="flex items-center gap-2 min-w-0"><FolderOpen size={22} className="text-amber-400 flex-shrink-0" /><h1 className="text-lg font-bold truncate">{bi('เอกสารโครงการ', 'Project documents')}</h1></div>
+          </div>
+        </div>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+          {/* สรุปโครงการ */}
+          <div className="bg-white border border-stone-200 rounded-xl p-4">
+            <p className="text-lg font-bold text-stone-900">{q.customerName || t('noName')}</p>
+            <p className="text-stone-600">{q.project || '-'}</p>
+            <p className="text-sm text-stone-400 mt-1">{q.quotationNo} · {formatDate(q.date)}</p>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-3 text-sm">
+              <span>{bi('ยอดรวม', 'Total')}: <b>{baht(tot)} ฿</b></span>
+              <span className="text-emerald-700">{bi('รับแล้ว', 'Received')}: <b>{baht(recv)} ฿</b></span>
+              <span className={out > 0 ? 'text-rose-600' : 'text-emerald-700'}>{bi('ค้าง', 'Outstanding')}: <b>{baht(out)} ฿</b></span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-stone-100 text-stone-600">{payStatus}</span>
+            </div>
+          </div>
+          {/* ปุ่มเอกสาร */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button onClick={() => previewQuotation(q)} className="flex flex-col items-center gap-1 p-3 bg-white border border-stone-200 rounded-lg hover:border-emerald-400"><FileText size={20} className="text-emerald-700" /><span className="text-xs text-stone-700">{bi('ใบเสนอราคา', 'Quotation')}</span></button>
+            <button onClick={() => setPaymentQ(q)} className="flex flex-col items-center gap-1 p-3 bg-white border border-stone-200 rounded-lg hover:border-emerald-400"><TrendingUp size={20} className="text-emerald-700" /><span className="text-xs text-stone-700">{bi('รับเงิน/ใบเสร็จ/บิล', 'Payments/Receipt')}</span></button>
+            <button onClick={() => { setLinkCopied(false); setShareLinkQ(q); }} className="flex flex-col items-center gap-1 p-3 bg-white border border-stone-200 rounded-lg hover:border-emerald-400"><Share2 size={20} className="text-blue-600" /><span className="text-xs text-stone-700">{bi('ลิงก์ส่งลูกค้า', 'Share link')}</span></button>
+            <button onClick={() => setApptForm({ ...newAppt(new Date().toISOString().split('T')[0]), quotationId: q.id, customerName: q.customerName || '', address: q.address || '', title: q.project || '' })} className="flex flex-col items-center gap-1 p-3 bg-white border border-stone-200 rounded-lg hover:border-emerald-400"><Calendar size={20} className="text-amber-600" /><span className="text-xs text-stone-700">{bi('เพิ่มนัดตรวจ', 'Add appointment')}</span></button>
+          </div>
+          {/* นัดตรวจของโครงการ */}
+          {qAppts.length > 0 && (
+            <div className="bg-white border border-stone-200 rounded-xl p-4">
+              <p className="font-semibold text-stone-800 mb-2 flex items-center gap-2"><Calendar size={16} /> {bi('นัดตรวจของโครงการนี้', 'Appointments')}</p>
+              <div className="space-y-1.5">
+                {qAppts.map((a) => (
+                  <div key={a.id} onClick={() => setApptForm({ ...a })} className="flex items-center gap-2 text-sm py-1.5 px-2 rounded hover:bg-stone-50 cursor-pointer">
+                    <span className="text-emerald-700 font-medium whitespace-nowrap">{formatDate(a.date)}{a.time ? ' ' + a.time : ''}</span>
+                    <span className="text-stone-700 truncate">{a.title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* ไฟล์แนบ */}
+          <div className="bg-white border border-stone-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-semibold text-stone-800 flex items-center gap-2"><Paperclip size={16} /> {bi('ไฟล์แนบ / รูปรายงานตรวจ', 'Attachments / inspection photos')}</p>
+              <label className="flex items-center gap-1 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-sm cursor-pointer">
+                <Plus size={14} /> {attachBusy ? bi('กำลังเพิ่ม…', 'Adding…') : bi('แนบรูป', 'Add image')}
+                <input type="file" accept="image/*" onChange={addAttachment} className="hidden" disabled={attachBusy} />
+              </label>
+            </div>
+            {attachments.length === 0 ? (
+              <p className="text-stone-400 text-sm py-4 text-center">{bi('ยังไม่มีไฟล์แนบ — กดแนบรูปรายงาน/หน้างาน', 'No attachments yet — add inspection photos')}</p>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {attachments.map((a) => (
+                  <div key={a.id} className="relative group">
+                    <a href={a.img} target="_blank" rel="noreferrer"><img src={a.img} alt={a.name} className="w-full h-24 object-cover rounded border border-stone-200" /></a>
+                    <button onClick={() => removeAttachment(a.id)} className="absolute top-1 right-1 bg-white/90 text-rose-600 rounded-full p-1 shadow"><X size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-stone-400 mt-2">{bi('รองรับรูปภาพ (ย่อขนาดอัตโนมัติ) เก็บบนคลาวด์ ดูได้ทุกอุปกรณ์', 'Images only (auto-resized), stored in cloud, visible on all devices')}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (view === 'calendar') {
     let cy = Number(calMonth.split('-')[0]);
     let cm = Number(calMonth.split('-')[1]); // 1-12
@@ -2540,6 +2653,7 @@ export default function QuotationSystem() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-center gap-1">
+                          <button onClick={() => openProject(q)} className="p-2 hover:bg-amber-100 rounded text-amber-600" title={bi('เอกสารโครงการ', 'Project documents')}><FolderOpen size={16} /></button>
                           <button onClick={() => setPaymentQ(q)} className="p-2 hover:bg-emerald-100 rounded text-emerald-700" title={t('payTitle')}><TrendingUp size={16} /></button>
                           <button onClick={() => previewQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipView')}><Eye size={16} /></button>
                           <button onClick={() => { setLinkCopied(false); setShareLinkQ(q); }} className="p-2 hover:bg-blue-100 rounded text-blue-600" title={bi('ลิงก์ส่งลูกค้า', 'Share link')}><Share2 size={16} /></button>
