@@ -805,6 +805,21 @@ export default function QuotationSystem() {
     } catch (e) { console.error(e); alert(bi('สำรองข้อมูลไม่สำเร็จ', 'Backup failed')); }
   };
 
+  // Export รายชื่อลูกค้า/ใบเสนอราคา เป็น CSV (เปิดด้วย Excel ได้)
+  const exportQuotationsCSV = () => {
+    const recvBy = {};
+    transactions.filter((t) => t.type === 'in' && t.quotationId).forEach((t) => { recvBy[t.quotationId] = (recvBy[t.quotationId] || 0) + (Number(t.amount) || 0); });
+    const header = ['เลขที่', 'ลูกค้า', 'โครงการ', 'ที่อยู่', 'วันที่', 'ยอดรวม', 'รับแล้ว', 'ค้างรับ', 'หัก ณ ที่จ่าย'];
+    const lines = [header.map(csvCell).join(',')];
+    [...quotations].sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach((q) => {
+      const rec = recvBy[q.id] || 0; const tot = Number(q.total) || 0;
+      const wm = q.whtMode || (q.withholdingTax ? 'deduct' : 'none');
+      const wmLabel = wm === 'deduct' ? 'หักจากราคา' : wm === 'included' ? 'รวมในราคา' : '-';
+      lines.push([q.quotationNo || '', q.customerName || '', q.project || '', q.address || '', q.date || '', tot, rec, Math.max(0, tot - rec), wmLabel].map(csvCell).join(','));
+    });
+    downloadFile('﻿' + lines.join('\r\n'), `ลูกค้า-ใบเสนอราคา-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8');
+  };
+
   // นำเข้า/กู้คืนจากไฟล์สำรอง
   const importData = (e) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -1529,6 +1544,13 @@ export default function QuotationSystem() {
               </label>
             </div>
             <p className="text-xs text-stone-500 mt-2">{bi('แนะนำให้สำรองเก็บไว้เป็นระยะ กันข้อมูลหาย', 'Back up regularly to keep your data safe')}</p>
+            <div className="mt-3 pt-3 border-t border-stone-200">
+              <p className="text-xs text-stone-500 mb-2">{bi('ส่งออกเป็น Excel (.csv) สำหรับบัญชี/ยื่นภาษี', 'Export to Excel (.csv) for accounting/tax')}</p>
+              <button onClick={exportQuotationsCSV} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold text-sm">
+                <Download size={16} /> {bi('Export ลูกค้า/ใบเสนอราคา (Excel)', 'Export customers/quotations (Excel)')}
+              </button>
+              <p className="text-xs text-stone-400 mt-2">{bi('รายการเงิน (รายรับ-รายจ่าย) ส่งออกได้ในหน้า "สรุปยอดการเงิน" → ปุ่ม Excel', 'Income/expense export is in "Finance Summary" → Excel button')}</p>
+            </div>
           </div>
 
           {/* คำเตือน */}
