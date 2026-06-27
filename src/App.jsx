@@ -2174,28 +2174,51 @@ export default function QuotationSystem() {
                 <p className="font-semibold text-stone-800">{t('monthlyTitle')} {yearDisp(selYear)}</p>
                 <div className="flex items-center gap-3 text-xs text-stone-500">
                   <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-emerald-500"></span>{t('tIncome')}</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-rose-400"></span>{t('tExpense')}</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-rose-300"></span>{t('tExpense')}</span>
                 </div>
               </div>
               {(() => {
-                const max = Math.max(1, ...monthly.map((r) => Math.max(r.in, r.out)));
-                // ย่อจำนวนเงินให้สั้นพอวางบนแท่งกราฟ เช่น 12500 -> "13k", 120000 -> "120k"
+                const rawMax = Math.max(1, ...monthly.map((r) => Math.max(r.in, r.out)));
+                // หาสเกลแกนซ้ายให้เป็นเลขกลมๆ (เช่น 20k, 50k) แบ่ง 4 ขั้น
+                const niceStep = (v) => { const raw = v / 4; const p = Math.pow(10, Math.floor(Math.log10(raw || 1))); const n = raw / p; const m = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10; return m * p; };
+                const step = niceStep(rawMax) || 1000;
+                const max = step * 4;
+                // ย่อจำนวนเงินให้สั้นพอวางบนแท่ง/แกน เช่น 12500 -> "13k", 120000 -> "120k"
                 const kfmt = (n) => { if (!n) return ''; if (n < 1000) return String(Math.round(n)); const k = n / 1000; return (k >= 10 ? Math.round(k) : Math.round(k * 10) / 10) + 'k'; };
+                const grow = { transformOrigin: 'bottom', animation: 'sqGrow 0.7s cubic-bezier(0.22,1,0.36,1)' };
                 return (
-                  <div className="flex items-end gap-1.5 h-48 mb-5 min-w-[480px] border-b border-stone-200 pb-0">
-                    {monthly.map((r) => {
-                      const sel = periodMode === 'month' && String(r.m + 1).padStart(2, '0') === selMonth;
-                      return (
-                      <div key={r.m} className={`flex-1 flex flex-col items-center justify-end h-full rounded-t ${sel ? 'bg-amber-50' : ''}`}>
-                        <span className="text-[9px] leading-none text-emerald-700 font-medium mb-0.5 h-3">{kfmt(r.in)}</span>
-                        <div className="w-full flex items-end justify-center gap-0.5 flex-1">
-                          <div className="w-1/2 max-w-[14px] bg-emerald-500 rounded-t" style={{ height: `${(r.in / max) * 100}%` }} title={`${MONTHS[r.m]} · ${t('tIncome')}: ${baht(r.in)} ฿`}></div>
-                          <div className="w-1/2 max-w-[14px] bg-rose-400 rounded-t" style={{ height: `${(r.out / max) * 100}%` }} title={`${MONTHS[r.m]} · ${t('tExpense')}: ${baht(r.out)} ฿`}></div>
-                        </div>
-                        <span className={`text-[10px] mt-1 ${sel ? 'text-amber-700 font-semibold' : 'text-stone-400'}`}>{MONTHS[r.m]}</span>
+                  <div className="min-w-[480px] mb-5">
+                    <style>{`@keyframes sqGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}`}</style>
+                    <div className="flex gap-2 items-start">
+                      <div className="flex flex-col justify-between text-right text-[10px] text-stone-400" style={{ height: '176px', minWidth: '30px' }}>
+                        {[4, 3, 2, 1, 0].map((a) => <span key={a}>{a === 0 ? '0' : kfmt(step * a)}</span>)}
                       </div>
-                      );
-                    })}
+                      <div className="relative flex-1">
+                        <div className="absolute left-0 right-0" style={{ top: 0, height: '176px' }}>
+                          {[0, 1, 2, 3, 4].map((g) => <div key={g} className="absolute left-0 right-0 bg-stone-200" style={{ top: `${g * 25}%`, height: '1px', opacity: 0.7 }}></div>)}
+                        </div>
+                        <div className="relative flex items-end gap-1.5" style={{ height: '176px', zIndex: 1 }}>
+                          {monthly.map((r) => {
+                            const sel = periodMode === 'month' && String(r.m + 1).padStart(2, '0') === selMonth;
+                            return (
+                              <div key={r.m} className={`flex-1 flex flex-col items-center justify-end h-full rounded-t ${sel ? 'bg-amber-50' : ''}`}>
+                                <span className="text-[9px] leading-none text-emerald-700 font-medium mb-0.5 h-3">{kfmt(r.in)}</span>
+                                <div className="w-full flex items-end justify-center gap-0.5 flex-1">
+                                  <div className="w-1/2 max-w-[15px] bg-emerald-500 rounded-t" style={{ height: `${(r.in / max) * 100}%`, ...grow }} title={`${MONTHS[r.m]} · ${t('tIncome')}: ${baht(r.in)} ฿`}></div>
+                                  <div className="w-1/2 max-w-[15px] bg-rose-300 rounded-t" style={{ height: `${(r.out / max) * 100}%`, ...grow }} title={`${MONTHS[r.m]} · ${t('tExpense')}: ${baht(r.out)} ฿`}></div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex gap-1.5 pt-1">
+                          {monthly.map((r) => {
+                            const sel = periodMode === 'month' && String(r.m + 1).padStart(2, '0') === selMonth;
+                            return <div key={r.m} className={`flex-1 text-center text-[10px] ${sel ? 'text-amber-700 font-semibold' : 'text-stone-400'}`}>{MONTHS[r.m]}</div>;
+                          })}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 );
               })()}
