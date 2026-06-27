@@ -2062,7 +2062,7 @@ export default function QuotationSystem() {
     }).filter(Boolean).sort((a, b) => b.wht - a.wht);
     const totalWht = whtRows.reduce((s, r) => s + r.wht, 0);
     const years = Array.from(new Set([String(nowD.getFullYear()), ...transactions.map((t) => yOf(t.date)).filter(Boolean)])).sort().reverse();
-    const monthly = periodMode === 'year' ? Array.from({ length: 12 }, (_, i) => {
+    const monthly = periodMode !== 'all' ? Array.from({ length: 12 }, (_, i) => {
       const ym = `${selYear}-${String(i + 1).padStart(2, '0')}`;
       const mt = transactions.filter((t) => ymOf(t.date) === ym);
       return { m: i, in: mt.filter((t) => t.type === 'in').reduce((s, t) => s + (+t.amount || 0), 0), out: mt.filter((t) => t.type === 'out').reduce((s, t) => s + (+t.amount || 0), 0) };
@@ -2179,17 +2179,23 @@ export default function QuotationSystem() {
               </div>
               {(() => {
                 const max = Math.max(1, ...monthly.map((r) => Math.max(r.in, r.out)));
+                // ย่อจำนวนเงินให้สั้นพอวางบนแท่งกราฟ เช่น 12500 -> "13k", 120000 -> "120k"
+                const kfmt = (n) => { if (!n) return ''; if (n < 1000) return String(Math.round(n)); const k = n / 1000; return (k >= 10 ? Math.round(k) : Math.round(k * 10) / 10) + 'k'; };
                 return (
-                  <div className="flex items-end gap-1.5 h-44 mb-5 min-w-[480px] border-b border-stone-200 pb-0">
-                    {monthly.map((r) => (
-                      <div key={r.m} className="flex-1 flex flex-col items-center justify-end h-full">
+                  <div className="flex items-end gap-1.5 h-48 mb-5 min-w-[480px] border-b border-stone-200 pb-0">
+                    {monthly.map((r) => {
+                      const sel = periodMode === 'month' && String(r.m + 1).padStart(2, '0') === selMonth;
+                      return (
+                      <div key={r.m} className={`flex-1 flex flex-col items-center justify-end h-full rounded-t ${sel ? 'bg-amber-50' : ''}`}>
+                        <span className="text-[9px] leading-none text-emerald-700 font-medium mb-0.5 h-3">{kfmt(r.in)}</span>
                         <div className="w-full flex items-end justify-center gap-0.5 flex-1">
                           <div className="w-1/2 max-w-[14px] bg-emerald-500 rounded-t" style={{ height: `${(r.in / max) * 100}%` }} title={`${MONTHS[r.m]} · ${t('tIncome')}: ${baht(r.in)} ฿`}></div>
                           <div className="w-1/2 max-w-[14px] bg-rose-400 rounded-t" style={{ height: `${(r.out / max) * 100}%` }} title={`${MONTHS[r.m]} · ${t('tExpense')}: ${baht(r.out)} ฿`}></div>
                         </div>
-                        <span className="text-[10px] text-stone-400 mt-1">{MONTHS[r.m]}</span>
+                        <span className={`text-[10px] mt-1 ${sel ? 'text-amber-700 font-semibold' : 'text-stone-400'}`}>{MONTHS[r.m]}</span>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 );
               })()}
