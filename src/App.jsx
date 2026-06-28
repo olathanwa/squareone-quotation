@@ -2586,8 +2586,8 @@ export default function QuotationSystem() {
 
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 md:py-8">
           <div className="flex flex-col sm:flex-row gap-3 mb-6">
-            <button onClick={startNewQuotation} className="flex items-center gap-2 px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold shadow-md">
-              <Plus size={20} /> {t('newQuote')}
+            <button onClick={startNewQuotation} className="flex items-center gap-[0.65rem] px-[1.95rem] py-[0.975rem] bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold shadow-md text-[1.3rem]">
+              <Plus size={26} /> {t('newQuote')}
             </button>
             <button onClick={() => setView('finance')} className="md:hidden flex items-center justify-center gap-2 px-4 py-3 bg-amber-500 text-slate-900 rounded-lg font-semibold">
               <Wallet size={18} /> {t('financeSummary')}
