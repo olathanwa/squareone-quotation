@@ -120,6 +120,15 @@ html:has(.sqdark), html:has(.sqdark) body { background-color:#14161b; }
 `;
 
 // ===== พจนานุกรมแปลภาษา (ไทย/อังกฤษ) สำหรับหน้าจอใช้งาน =====
+// หมายเหตุที่ใช้บ่อย ให้กดเพิ่มในฟอร์มได้เลย ไม่ต้องพิมพ์ใหม่
+const NOTE_TEMPLATES = [
+  'ราคานี้ครอบคลุมการตรวจ 3 รอบ (ในรายการแก้ไขจากรอบแรก)',
+  'มัดจำ 50% ก่อนเริ่มงาน ส่วนที่เหลือชำระเมื่อส่งรายงาน',
+  'ใบเสนอราคานี้มีอายุ 30 วันนับจากวันที่ออก',
+  'ราคานี้ยังไม่รวมภาษีมูลค่าเพิ่ม (VAT 7%)',
+  'กรุณานัดหมายวันตรวจล่วงหน้าอย่างน้อย 2 วัน',
+];
+
 const T = {
   th: {
     appSub: 'INSPECTOR AND DESIGNER · ระบบใบเสนอราคา',
@@ -2530,6 +2539,8 @@ export default function QuotationSystem() {
     const ymNow = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}`;
     const incomeThisMonth = transactions.filter((t) => t.type === 'in' && ymOf(t.date) === ymNow).reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const totalOutstanding = quotations.reduce((s, q) => s + Math.max(0, (Number(q.total) || 0) - (receivedByQ[q.id] || 0)), 0);
+    // จำนวนใบที่ยังค้างรับ (ไว้โชว์ป้ายแจ้งเตือนบนการ์ด "ค้างรับ")
+    const owingCount = quotations.filter((q) => (Number(q.total) || 0) > 0 && (Number(q.total) || 0) - (receivedByQ[q.id] || 0) > 0).length;
     const displayedQuotations = onlyOwing ? filteredQuotations.filter((q) => ((Number(q.total) || 0) - (receivedByQ[q.id] || 0)) > 0) : filteredQuotations;
     return (
       <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
@@ -2629,7 +2640,8 @@ export default function QuotationSystem() {
               <p className="text-stone-500 text-sm flex items-center gap-1.5"><TrendingUp size={15} className="text-emerald-600" /> {t('incomeThisMonth')}</p>
               <p className="text-2xl font-bold text-emerald-700 mt-1">{baht(incomeThisMonth)} ฿</p>
             </button>
-            <button onClick={() => setView('followup')} className="text-left bg-amber-50 border border-amber-200 rounded-lg p-4 border-l-4 border-l-amber-500 hover:border-amber-300 transition">
+            <button onClick={() => setView('followup')} className="relative text-left bg-amber-50 border border-amber-200 rounded-lg p-4 border-l-4 border-l-amber-500 hover:border-amber-300 transition">
+              {owingCount > 0 && <span className="absolute top-2 right-2 min-w-[22px] h-[22px] px-1.5 flex items-center justify-center bg-red-600 text-white text-xs font-bold rounded-full shadow">{owingCount}</span>}
               <p className="text-amber-800 text-sm flex items-center gap-1.5"><Wallet size={15} /> {t('outstandingShort')} <span className="text-xs text-amber-600">({bi('กดตามเก็บ', 'follow up')})</span></p>
               <p className="text-2xl font-bold text-amber-700 mt-1">{baht(totalOutstanding)} ฿</p>
             </button>
@@ -2949,6 +2961,23 @@ export default function QuotationSystem() {
               <Plus size={14} /> {bi('เพิ่ม', 'Add')}
             </button>
           </div>
+          {NOTE_TEMPLATES.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs text-stone-500 mb-1.5">{bi('แตะเพื่อเพิ่มหมายเหตุที่ใช้บ่อย', 'Tap to add a common note')}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {NOTE_TEMPLATES.map((tpl, i) => {
+                  const used = form.extraNotes.some((n) => n.trim() === tpl);
+                  return (
+                    <button key={i} type="button" disabled={used}
+                      onClick={() => { const cur = form.extraNotes.filter((n) => n.trim()); if (!cur.includes(tpl)) setForm({ ...form, extraNotes: [...cur, tpl] }); }}
+                      className={`text-xs px-2.5 py-1 rounded-full border ${used ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-stone-300 text-stone-600 hover:border-emerald-400 hover:text-emerald-700'}`}>
+                      {used ? '✓ ' : '+ '}{tpl.length > 34 ? tpl.slice(0, 34) + '…' : tpl}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="space-y-2">
             {form.extraNotes.map((note, idx) => (
               <div key={idx} className="flex items-center gap-2">
