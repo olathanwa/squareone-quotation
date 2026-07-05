@@ -900,10 +900,12 @@ export default function QuotationSystem() {
     return `${prefix}${String(max + 1).padStart(3, '0')}`;
   };
 
-  const autoCalculateInstallments = (total) => {
+  const autoCalculateInstallments = (total, propertyType) => {
     if (!total || total <= 0) return [{ name: 'มัดจำและกำหนดวันตรวจ', amount: 0 }, { name: 'เมื่อส่งรายงานการตรวจรอบที่ 1 เสร็จ', amount: 0 }];
-    // ยอด 5,000 บาท ใช้งวดคงที่ตามที่กำหนด (งวดแรก 2,000 / งวดสอง 3,000)
-    const deposit = total === 5000 ? 2000 : Math.round(total * 0.3 / 500) * 500;
+    // คอนโด: งวดแรก (มัดจำ) 1,500 บาทเสมอ
+    // บ้าน: ยอด 5,000 บาท ใช้งวดคงที่ (งวดแรก 2,000) นอกนั้นมัดจำ ~30% ปัดเป็นหลัก 500
+    const deposit = propertyType === 'condo' ? Math.min(1500, total)
+      : total === 5000 ? 2000 : Math.round(total * 0.3 / 500) * 500;
     return [
       { name: 'มัดจำและกำหนดวันตรวจ', amount: deposit },
       { name: 'เมื่อส่งรายงานการตรวจรอบที่ 1 เสร็จ', amount: total - deposit },
@@ -935,7 +937,7 @@ export default function QuotationSystem() {
       ...form,
       propertyArea: area,
       items: newItems,
-      installments: autoCalculateInstallments(newTotal),
+      installments: autoCalculateInstallments(newTotal, form.propertyType),
     });
   };
 
@@ -947,7 +949,9 @@ export default function QuotationSystem() {
     if (newItems[0]) {
       newItems[0] = { ...newItems[0], description: descLabel, unit: unitLabel, price: rate || newItems[0].price, autoCalculated: rate !== null };
     }
-    setForm({ ...form, propertyType: type, items: newItems });
+    const newTotal = newItems.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.price) || 0), 0)
+                    + (form.travelFee.enabled ? (Number(form.travelFee.count) || 0) * (Number(form.travelFee.pricePerTrip) || 0) : 0);
+    setForm({ ...form, propertyType: type, items: newItems, installments: autoCalculateInstallments(newTotal, type) });
   };
 
   const startNewQuotation = () => {
@@ -982,7 +986,7 @@ export default function QuotationSystem() {
 
   const totalInstallments = () => form.installments.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
 
-  const recalculateInstallments = () => setForm({ ...form, installments: autoCalculateInstallments(calcSubtotal()) });
+  const recalculateInstallments = () => setForm({ ...form, installments: autoCalculateInstallments(calcSubtotal(), form.propertyType) });
 
   const updateItem = (idx, field, value) => {
     const newItems = [...form.items];
