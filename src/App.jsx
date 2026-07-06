@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FileText, Plus, Trash2, Save, ArrowLeft, Printer, Search, Copy, Eye, Calculator, Info, QrCode, Settings, Wallet, TrendingUp, TrendingDown, Calendar, X, Paperclip, Download, Share2, Pencil, FolderOpen } from 'lucide-react';
+import { FileText, Plus, Trash2, Save, ArrowLeft, Printer, Search, Copy, Eye, Calculator, Info, QrCode, Settings, Wallet, TrendingUp, TrendingDown, Calendar, X, Paperclip, Download, Share2, Pencil, FolderOpen, Receipt } from 'lucide-react';
 import { cloudStorage } from './supabase';
 
 // ===== QR Code PromptPay สแควร์วัน อินสเปคเตอร์ =====
@@ -1324,6 +1324,16 @@ export default function QuotationSystem() {
     const w = window.open('', '_blank');
     if (w) { w.document.write(html); w.document.close(); }
     else downloadFile(html, `ใบวางบิล_${q.quotationNo || 'INV'}.html`, 'text/html;charset=utf-8');
+  };
+
+  // ปุ่มลัดจากหน้ารายการ: ออกใบวางบิลของงวดแรกที่ยังไม่จ่าย
+  const printNextBill = (q) => {
+    const insts = q.installments || [];
+    if (!insts.length) { alert(t('noInstallments')); return; }
+    const paidNames = new Set(transactions.filter((x) => x.type === 'in' && x.quotationId === q.id && x.installment).map((x) => x.installment));
+    const idx = insts.findIndex((inst) => !paidNames.has(inst.name));
+    if (idx === -1) { alert(bi('ใบนี้รับเงินครบทุกงวดแล้ว', 'All installments already paid')); return; }
+    printBillForInstallment(q, insts[idx], idx);
   };
 
   // โมดัลรับเงินรายงวดของแต่ละโครงการ
@@ -2728,6 +2738,7 @@ export default function QuotationSystem() {
                         <div className="flex justify-center gap-1">
                           <button onClick={() => openProject(q)} className="p-2 hover:bg-amber-100 rounded text-amber-600" title={bi('เอกสารโครงการ', 'Project documents')}><FolderOpen size={16} /></button>
                           <button onClick={() => setPaymentQ(q)} className="p-2 hover:bg-emerald-100 rounded text-emerald-700" title={t('payTitle')}><TrendingUp size={16} /></button>
+                          <button onClick={() => printNextBill(q)} className="p-2 hover:bg-violet-100 rounded text-violet-700" title={bi('ใบวางบิลงวดถัดไป', 'Invoice next installment')}><Receipt size={16} /></button>
                           <button onClick={() => previewQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipView')}><Eye size={16} /></button>
                           <button onClick={() => { setLinkCopied(false); setShareLinkQ(q); }} className="p-2 hover:bg-blue-100 rounded text-blue-600" title={bi('ลิงก์ส่งลูกค้า', 'Share link')}><Share2 size={16} /></button>
                           <button onClick={() => duplicateQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipCopy')}><Copy size={16} /></button>
