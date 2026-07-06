@@ -942,6 +942,15 @@ export default function QuotationSystem() {
   };
 
   const handleTypeChange = (type) => {
+    // งานที่ปรึกษางานก่อสร้าง: เสนอราคารายเดือน ไม่ใช้ตารางอัตรา/พื้นที่ (จำนวน = เดือน, ราคากรอกเอง)
+    if (type === 'consult') {
+      const newItems = [...form.items];
+      if (newItems[0]) {
+        newItems[0] = { ...newItems[0], description: 'งานที่ปรึกษางานก่อสร้าง มีรายละเอียดการทำงานดังนี้', subDescription: 'เสนอราคาเป็นรายเดือน (ระยะเวลาขึ้นอยู่กับระยะเวลางานก่อสร้าง)', unit: 'เดือน', autoCalculated: false };
+      }
+      setForm({ ...form, propertyType: type, items: newItems });
+      return;
+    }
     const rate = calculateRate(type, form.propertyArea);
     const unitLabel = type === 'house' ? 'หลัง' : 'ห้อง';
     const descLabel = type === 'house' ? 'งานตรวจสอบบ้าน' : 'งานตรวจสอบคอนโดมิเนียม';
@@ -2823,15 +2832,24 @@ export default function QuotationSystem() {
                 <button type="button" onClick={() => handleTypeChange('condo')} className={`px-4 py-2 rounded font-semibold transition ${form.propertyType === 'condo' ? 'bg-slate-900 text-white' : 'bg-white border border-stone-300 text-stone-700 hover:border-stone-500'}`}>
                   🏢 {bi('คอนโด', 'Condo')}
                 </button>
+                <button type="button" onClick={() => handleTypeChange('consult')} className={`col-span-2 px-4 py-2 rounded font-semibold transition ${form.propertyType === 'consult' ? 'bg-slate-900 text-white' : 'bg-white border border-stone-300 text-stone-700 hover:border-stone-500'}`}>
+                  👷 {bi('ที่ปรึกษางานก่อสร้าง (รายเดือน)', 'Construction consulting (monthly)')}
+                </button>
               </div>
             </div>
+            {form.propertyType !== 'consult' ? (
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">{bi('พื้นที่ใช้สอย (ตร.ม.)', 'Usable Area (sq.m.)')}</label>
               <input type="number" value={form.propertyArea} onChange={(e) => handleAreaChange(e.target.value)} placeholder={form.propertyType === 'house' ? bi('เช่น 121', 'e.g. 121') : bi('เช่น 35', 'e.g. 35')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
             </div>
+            ) : (
+            <div className="flex items-end">
+              <p className="text-sm text-stone-500 bg-stone-50 border border-stone-200 rounded p-3 w-full">{bi('ใส่ราคาต่อเดือนในช่อง "ราคา" และจำนวนเดือนในช่อง "จำนวน" ของรายการด้านล่าง', 'Enter price per month in "Price" and number of months in "Quantity" below')}</p>
+            </div>
+            )}
           </div>
 
-          {form.propertyArea && (
+          {form.propertyArea && form.propertyType !== 'consult' && (
             <div className={`mt-4 p-3 rounded ${areaInRange ? 'bg-emerald-100 border border-emerald-300' : 'bg-red-100 border border-red-300'}`}>
               {areaInRange ? (
                 <p className="text-emerald-900 text-sm">
