@@ -2849,8 +2849,15 @@ export default function QuotationSystem() {
               <input type="number" value={form.propertyArea} onChange={(e) => handleAreaChange(e.target.value)} placeholder={form.propertyType === 'house' ? bi('เช่น 121', 'e.g. 121') : bi('เช่น 35', 'e.g. 35')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
             </div>
             ) : (
-            <div className="flex items-end">
-              <p className="text-sm text-stone-500 bg-stone-50 border border-stone-200 rounded p-3 w-full">{bi('ใส่ราคาต่อเดือนในช่อง "ราคา" และจำนวนเดือนในช่อง "จำนวน" ของรายการด้านล่าง', 'Enter price per month in "Price" and number of months in "Quantity" below')}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ราคาต่อเดือน (บาท)', 'Price per month (THB)')}</label>
+                <input type="number" value={form.items[0]?.price ?? ''} onChange={(e) => updateItem(0, 'price', e.target.value)} placeholder={bi('เช่น 15000', 'e.g. 15000')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1">{bi('จำนวนเดือน', 'Months')}</label>
+                <input type="number" value={form.items[0]?.quantity ?? ''} onChange={(e) => updateItem(0, 'quantity', e.target.value)} placeholder={bi('เช่น 6', 'e.g. 6')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+              </div>
             </div>
             )}
           </div>
