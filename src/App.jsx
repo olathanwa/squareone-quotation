@@ -900,6 +900,12 @@ export default function QuotationSystem() {
     return `${prefix}${String(max + 1).padStart(3, '0')}`;
   };
 
+  // งวดของงานที่ปรึกษา: เดือนละ 1 งวด เบิกก่อนวันที่ 5 ของเดือน (ยอดรวมงวด = ราคา/เดือน × จำนวนเดือน)
+  const buildMonthlyInstallments = (pricePerMonth, months) => {
+    const n = Math.max(1, Math.min(120, Math.floor(months) || 1));
+    return Array.from({ length: n }, (_, i) => ({ name: `เดือนที่ ${i + 1} (เบิกก่อนวันที่ 5 ของเดือน)`, amount: pricePerMonth }));
+  };
+
   const autoCalculateInstallments = (total, propertyType) => {
     if (!total || total <= 0) return [{ name: 'มัดจำและกำหนดวันตรวจ', amount: 0 }, { name: 'เมื่อส่งรายงานการตรวจรอบที่ 1 เสร็จ', amount: 0 }];
     // คอนโด: งวดแรก (มัดจำ) 1,500 บาทเสมอ
@@ -954,7 +960,7 @@ export default function QuotationSystem() {
           'ให้ความเห็นในการร่วมแก้ไขและปรับปรุงแบบและวัสดุก่อสร้าง',
         ] };
       }
-      setForm({ ...form, propertyType: type, items: newItems });
+      setForm({ ...form, propertyType: type, items: newItems, installments: buildMonthlyInstallments(Number(newItems[0]?.price) || 0, Number(newItems[0]?.quantity) || 1) });
       return;
     }
     const rate = calculateRate(type, form.propertyArea);
@@ -1001,13 +1007,22 @@ export default function QuotationSystem() {
 
   const totalInstallments = () => form.installments.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
 
-  const recalculateInstallments = () => setForm({ ...form, installments: autoCalculateInstallments(calcSubtotal(), form.propertyType) });
+  const recalculateInstallments = () => setForm({ ...form, installments: form.propertyType === 'consult'
+    ? buildMonthlyInstallments(Number(form.items[0]?.price) || 0, Number(form.items[0]?.quantity) || 1)
+    : autoCalculateInstallments(calcSubtotal(), form.propertyType) });
 
   const updateItem = (idx, field, value) => {
     const newItems = [...form.items];
     newItems[idx] = { ...newItems[idx], [field]: value };
     if (field === 'price') newItems[idx].autoCalculated = false;
     setForm({ ...form, items: newItems });
+  };
+
+  // งานที่ปรึกษา: แก้ราคาต่อเดือน/จำนวนเดือน แล้วสร้างงวดรายเดือนใหม่ให้ตรงกันเสมอ
+  const updateConsultMonthly = (field, value) => {
+    const newItems = [...form.items];
+    if (newItems[0]) newItems[0] = { ...newItems[0], [field]: value, ...(field === 'price' ? { autoCalculated: false } : {}) };
+    setForm({ ...form, items: newItems, installments: buildMonthlyInstallments(Number(newItems[0]?.price) || 0, Number(newItems[0]?.quantity) || 1) });
   };
 
   const addItem = () => setForm({ ...form, items: [...form.items, { description: '', subDescription: '', details: [], quantity: 1, unit: 'หลัง', price: 0, autoCalculated: false }] });
@@ -2852,11 +2867,11 @@ export default function QuotationSystem() {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ราคาต่อเดือน (บาท)', 'Price per month (THB)')}</label>
-                <input type="number" value={form.items[0]?.price ?? ''} onChange={(e) => updateItem(0, 'price', e.target.value)} placeholder={bi('เช่น 15000', 'e.g. 15000')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                <input type="number" value={form.items[0]?.price ?? ''} onChange={(e) => updateConsultMonthly('price', e.target.value)} placeholder={bi('เช่น 15000', 'e.g. 15000')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">{bi('จำนวนเดือน', 'Months')}</label>
-                <input type="number" value={form.items[0]?.quantity ?? ''} onChange={(e) => updateItem(0, 'quantity', e.target.value)} placeholder={bi('เช่น 6', 'e.g. 6')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                <input type="number" value={form.items[0]?.quantity ?? ''} onChange={(e) => updateConsultMonthly('quantity', e.target.value)} placeholder={bi('เช่น 6', 'e.g. 6')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
               </div>
             </div>
             )}
