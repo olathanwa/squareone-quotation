@@ -2099,6 +2099,13 @@ export default function QuotationSystem() {
     const totalIn = periodTxns.filter((t) => t.type === 'in').reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const totalOut = periodTxns.filter((t) => t.type === 'out').reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const net = totalIn - totalOut;
+    // รายรับแยกตามประเภทงาน (ดูจากใบเสนอราคาที่เงินผูกอยู่): ตรวจบ้าน/คอนโด vs ที่ปรึกษา vs ไม่ผูกใบ
+    const incomeByType = { inspect: 0, consult: 0, other: 0 };
+    periodTxns.filter((t) => t.type === 'in').forEach((t) => {
+      const q = t.quotationId ? quotations.find((x) => x.id === t.quotationId) : null;
+      const key = q ? (q.propertyType === 'consult' ? 'consult' : 'inspect') : 'other';
+      incomeByType[key] += Number(t.amount) || 0;
+    });
     const receivedByQ = {};
     transactions.filter((t) => t.type === 'in' && t.quotationId).forEach((t) => { receivedByQ[t.quotationId] = (receivedByQ[t.quotationId] || 0) + (Number(t.amount) || 0); });
     const projRows = quotations.map((q) => ({ q, received: receivedByQ[q.id] || 0, outstanding: (Number(q.total) || 0) - (receivedByQ[q.id] || 0) })).filter((r) => (Number(r.q.total) || 0) > 0);
@@ -2191,6 +2198,32 @@ export default function QuotationSystem() {
             <div className="bg-white border border-stone-200 rounded-lg p-4"><p className="text-stone-500 text-sm">{t('net')}</p><p className={`text-2xl font-bold mt-1 ${net >= 0 ? 'text-slate-900' : 'text-rose-700'}`}>{baht(net)} ฿</p></div>
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4"><p className="text-amber-800 text-sm">{t('outstanding')}</p><p className="text-2xl font-bold text-amber-700 mt-1">{baht(totalOutstanding)} ฿</p></div>
           </div>
+
+          {/* รายรับแยกตามประเภทงาน */}
+          {totalIn > 0 && (
+            <div className="bg-white border border-stone-200 rounded-lg p-4 mb-6">
+              <p className="font-semibold text-stone-800 mb-3">{bi('รายรับแยกตามประเภทงาน', 'Income by work type')} · {periodLabel}</p>
+              <div className="space-y-2">
+                {[
+                  { key: 'inspect', icon: '🏠', label: bi('งานตรวจบ้าน / คอนโด', 'Home / condo inspection'), color: 'bg-emerald-500' },
+                  { key: 'consult', icon: '👷', label: bi('งานที่ปรึกษางานก่อสร้าง', 'Construction consulting'), color: 'bg-blue-500' },
+                  { key: 'other', icon: '📦', label: bi('อื่นๆ (ไม่ผูกใบเสนอราคา)', 'Other (no quotation)'), color: 'bg-stone-400' },
+                ].filter((r) => incomeByType[r.key] > 0).map((r) => {
+                  const amt = incomeByType[r.key];
+                  const pct = Math.round((amt / totalIn) * 100);
+                  return (
+                    <div key={r.key}>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-stone-700">{r.icon} {r.label}</span>
+                        <span className="font-semibold text-stone-800">{baht(amt)} ฿ <span className="text-stone-400 font-normal">({pct}%)</span></span>
+                      </div>
+                      <div className="h-2 bg-stone-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${r.color}`} style={{ width: `${pct}%` }}></div></div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* สรุปหัก ณ ที่จ่าย 3% รายปี */}
           {whtRows.length > 0 && (
