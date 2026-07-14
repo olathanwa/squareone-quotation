@@ -346,8 +346,25 @@ table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}th,td{bo
 .tot{font-size:18px;font-weight:700;color:#0f766e}
 .pay{margin-top:14px;border:1px solid #1B2430;border-radius:6px;padding:10px 12px;display:flex;gap:12px;align-items:center}
 .pay .qr{width:150px;height:auto;flex-shrink:0}
-.btn{position:fixed;top:14px;right:14px;background:#0f766e;color:#fff;border:none;padding:10px 16px;border-radius:8px;cursor:pointer}@media print{.btn{display:none}}
+.btn{position:fixed;top:14px;right:14px;background:#0f766e;color:#fff;border:none;padding:10px 16px;border-radius:8px;cursor:pointer}
 .sign{margin-top:48px;display:flex;justify-content:space-between;color:#667}
+@page{size:A4;margin:9mm}
+@media print{
+.btn{display:none}
+body{max-width:100%;margin:0;padding:0;font-size:12.5px;line-height:1.35}
+.head img{height:42px!important}
+.head h1{font-size:16px}
+h2{font-size:17px;margin:8px 0}
+table,.info{font-size:12px;margin-top:6px}
+th,td,.info td{padding:4px 8px}
+.tot{font-size:15px}
+.pay{margin-top:8px;padding:7px 10px;page-break-inside:avoid}
+.pay .qr{width:100px}
+.stamp{margin-top:8px!important}
+.stamp img{height:64px!important}
+.sign{margin-top:20px;page-break-inside:avoid}
+table,.info,.head{page-break-inside:avoid}
+}
 </style></head>
 <body><button class="btn" onclick="window.print()">${L.print}</button>
 <div class="head"><img src="${COMPANY_LOGO}" alt="logo" style="height:58px;width:auto;display:block;margin:0 auto 6px"/><h1>${esc(company.name || 'SquareOne')}</h1><div class="muted">${esc(company.address || '')}</div><div class="muted">${company.phone ? 'โทร: ' + esc(company.phone) : ''}${company.taxId ? '　เลขภาษี ' + esc(company.taxId) : ''}</div></div>
@@ -368,7 +385,7 @@ ${amountWords ? `<tr><td colspan="2" style="text-align:right;font-style:italic">
   ${showQR ? `<img class="qr" src="${QR_CODE_DATA}" alt="Thai QR Payment"/>` : ''}
   <div><div style="font-weight:700;margin-bottom:4px">${L.pay}</div>${bankInfo ? `<div>${esc(bankInfo)}</div>` : ''}<div class="muted" style="margin-top:6px">${L.note}</div></div>
 </div>
-${stamp ? `<div style="margin-top:18px;text-align:left"><img src="${stamp}" style="height:96px;width:auto;object-fit:contain"/></div>` : ''}
+${stamp ? `<div class="stamp" style="margin-top:18px;text-align:left"><img src="${stamp}" style="height:96px;width:auto;object-fit:contain"/></div>` : ''}
 <div class="sign"><div>........................................<br>${L.issuer}</div><div>........................................<br>${L.receiver}</div></div>
 </body></html>`;
 };
