@@ -402,6 +402,7 @@ export default function QuotationSystem() {
   const [txnFilter, setTxnFilter] = useState('all'); // all | in | out
   const [txnSort, setTxnSort] = useState('dateDesc'); // dateDesc | dateAsc | amountDesc
   const [paymentQ, setPaymentQ] = useState(null); // โครงการที่กำลังจัดการรับเงินรายงวด
+  const [billChoiceQ, setBillChoiceQ] = useState(null); // ใบที่กำลังเลือกชนิดใบวางบิล (งวดเดียว/ยอดรวม)
   const [onlyOwing, setOnlyOwing] = useState(false); // กรองเฉพาะที่ยังค้างรับ (ไว้ตามเก็บเงิน)
   const [shareLinkQ, setShareLinkQ] = useState(null); // ใบที่กำลังแสดงลิงก์แชร์
   const [linkCopied, setLinkCopied] = useState(false);
@@ -1343,14 +1344,40 @@ export default function QuotationSystem() {
     else downloadFile(html, `ใบวางบิลยอดรวม_${q.quotationNo || 'INV'}.html`, 'text/html;charset=utf-8');
   };
 
-  // ปุ่มลัดจากหน้ารายการ: ออกใบวางบิลของงวดแรกที่ยังไม่จ่าย
-  const printNextBill = (q) => {
+  // ป็อปอัปเลือกชนิดใบวางบิล: งวดเดียว (งวดถัดไปที่ยังไม่จ่าย) หรือ ยอดรวม
+  const BillChoiceModal = () => {
+    if (!billChoiceQ) return null;
+    const q = billChoiceQ;
     const insts = q.installments || [];
-    if (!insts.length) { alert(t('noInstallments')); return; }
     const paidNames = new Set(transactions.filter((x) => x.type === 'in' && x.quotationId === q.id && x.installment).map((x) => x.installment));
     const idx = insts.findIndex((inst) => !paidNames.has(inst.name));
-    if (idx === -1) { alert(bi('ใบนี้รับเงินครบทุกงวดแล้ว', 'All installments already paid')); return; }
-    printBillForInstallment(q, insts[idx], idx);
+    const next = idx === -1 ? null : insts[idx];
+    return (
+      <div className="fixed inset-0 bg-black/50 z-40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={(e) => { if (e.target === e.currentTarget) setBillChoiceQ(null); }}>
+        <div className="bg-white rounded-t-2xl sm:rounded-xl w-full sm:max-w-md p-5 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h3 className="font-bold text-lg flex items-center gap-2"><Receipt size={20} className="text-violet-700" /> {bi('ออกใบวางบิล', 'Create invoice')}</h3>
+              <p className="text-sm text-stone-500 truncate">{q.quotationNo} · {q.customerName || t('noName')}</p>
+            </div>
+            <button onClick={() => setBillChoiceQ(null)} className="p-1 text-stone-400 hover:text-stone-700 flex-shrink-0"><X size={22} /></button>
+          </div>
+          {next ? (
+            <button onClick={() => { printBillForInstallment(q, next, idx); setBillChoiceQ(null); }} className="w-full text-left px-4 py-3 bg-white border border-stone-300 hover:border-violet-400 hover:bg-violet-50 rounded-lg">
+              <p className="font-semibold text-stone-800">{bi('วางบิลงวดเดียว', 'Single installment')} <span className="text-violet-700">({baht(next.amount)} ฿)</span></p>
+              <p className="text-sm text-stone-500 mt-0.5">{bi('งวดที่', 'Installment')} {idx + 1} — {next.name}</p>
+            </button>
+          ) : (
+            <div className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-500">{insts.length ? bi('ทุกงวดรับเงินครบแล้ว — วางบิลได้เฉพาะยอดรวม', 'All installments paid — only grand total available') : t('noInstallments')}</div>
+          )}
+          <button onClick={() => { printTotalBill(q); setBillChoiceQ(null); }} className="w-full text-left px-4 py-3 bg-white border border-stone-300 hover:border-violet-400 hover:bg-violet-50 rounded-lg">
+            <p className="font-semibold text-stone-800">{bi('วางบิลยอดรวม', 'Grand total')} <span className="text-violet-700">({baht(Number(q.total) || 0)} ฿)</span></p>
+            <p className="text-sm text-stone-500 mt-0.5">{bi('ทั้งยอดของใบเสนอราคาในบิลเดียว', 'Entire quotation in one invoice')}</p>
+          </button>
+          <button onClick={() => setBillChoiceQ(null)} className="w-full px-4 py-2.5 bg-white border border-stone-300 text-stone-600 rounded-lg font-medium">{bi('ยกเลิก', 'Cancel')}</button>
+        </div>
+      </div>
+    );
   };
 
   // โมดัลรับเงินรายงวดของแต่ละโครงการ
@@ -2638,6 +2665,7 @@ export default function QuotationSystem() {
     return (
       <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
         <PaymentsModal />
+        <BillChoiceModal />
         <ShareLinkModal />
         <ReceiptReviewOverlay />
         <ReceiptLinkModal />
@@ -2789,7 +2817,7 @@ export default function QuotationSystem() {
                         <div className="flex justify-center gap-1">
                           <button onClick={() => openProject(q)} className="p-2 hover:bg-amber-100 rounded text-amber-600" title={bi('เอกสารโครงการ', 'Project documents')}><FolderOpen size={16} /></button>
                           <button onClick={() => setPaymentQ(q)} className="p-2 hover:bg-emerald-100 rounded text-emerald-700" title={t('payTitle')}><TrendingUp size={16} /></button>
-                          <button onClick={() => printNextBill(q)} className="p-2 hover:bg-violet-100 rounded text-violet-700" title={bi('ใบวางบิลงวดถัดไป', 'Invoice next installment')}><Receipt size={16} /></button>
+                          <button onClick={() => setBillChoiceQ(q)} className="p-2 hover:bg-violet-100 rounded text-violet-700" title={bi('ออกใบวางบิล', 'Create invoice')}><Receipt size={16} /></button>
                           <button onClick={() => previewQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipView')}><Eye size={16} /></button>
                           <button onClick={() => { setLinkCopied(false); setShareLinkQ(q); }} className="p-2 hover:bg-blue-100 rounded text-blue-600" title={bi('ลิงก์ส่งลูกค้า', 'Share link')}><Share2 size={16} /></button>
                           <button onClick={() => duplicateQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipCopy')}><Copy size={16} /></button>
