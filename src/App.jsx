@@ -1326,6 +1326,23 @@ export default function QuotationSystem() {
     else downloadFile(html, `ใบวางบิล_${q.quotationNo || 'INV'}.html`, 'text/html;charset=utf-8');
   };
 
+  // ใบวางบิลยอดรวม: วางบิลทั้งยอดของใบเสนอราคาในใบเดียว (เลขที่บิลลงท้าย -BT)
+  const printTotalBill = (q) => {
+    const amt = Number(q.total) || 0;
+    if (amt <= 0) { alert(bi('ใบนี้ยังไม่มียอดรวม — ใส่รายการ/ราคาก่อน', 'This quotation has no total yet')); return; }
+    const html = buildBillHTML({
+      company: { name: q.companyName || settings.companyName, address: q.companyAddress || settings.companyAddress, phone: q.companyPhone || settings.companyPhone, taxId: q.companyTaxId || settings.companyTaxId },
+      customer: q.customerName, customerAddress: q.address, project: q.project, quotationNo: q.quotationNo,
+      billNo: `${q.quotationNo || 'INV'}-BT`,
+      itemName: bi(`ค่าบริการตามใบเสนอราคาเลขที่ ${q.quotationNo || '-'} (ยอดรวมทั้งสิ้น)`, `Services per quotation ${q.quotationNo || '-'} (grand total)`),
+      amount: amt, amountWords: numberToThaiWords(amt),
+      dateStr: formatDate(new Date().toISOString().slice(0, 10)), bankInfo: q.bankInfo, showQR: q.showQR !== false, lang, whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), stamp: settings.stampImage,
+    });
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+    else downloadFile(html, `ใบวางบิลยอดรวม_${q.quotationNo || 'INV'}.html`, 'text/html;charset=utf-8');
+  };
+
   // ปุ่มลัดจากหน้ารายการ: ออกใบวางบิลของงวดแรกที่ยังไม่จ่าย
   const printNextBill = (q) => {
     const insts = q.installments || [];
@@ -1366,6 +1383,7 @@ export default function QuotationSystem() {
             {totalReceived > 0 && (
               <button onClick={() => openReceiptReview(q, null)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-200 rounded-lg font-semibold text-sm"><Printer size={16} /> {t('receiptTotalBtn')} ({baht(totalReceived)} ฿)</button>
             )}
+            <button onClick={() => printTotalBill(q)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-violet-300 hover:bg-violet-50 text-violet-700 rounded-lg font-semibold text-sm"><Receipt size={16} /> {bi('ใบวางบิลยอดรวม', 'Invoice (grand total)')} ({baht(Number(q.total) || 0)} ฿)</button>
             {insts.length === 0 ? (
               <p className="text-center text-stone-400 py-6">{t('noInstallments')}</p>
             ) : insts.map((inst, idx) => {
