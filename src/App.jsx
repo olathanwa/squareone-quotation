@@ -2678,7 +2678,15 @@ export default function QuotationSystem() {
     const totalOutstanding = quotations.reduce((s, q) => s + Math.max(0, (Number(q.total) || 0) - (receivedByQ[q.id] || 0)), 0);
     // จำนวนใบที่ยังค้างรับ (ไว้โชว์ป้ายแจ้งเตือนบนการ์ด "ค้างรับ")
     const owingCount = quotations.filter((q) => (Number(q.total) || 0) > 0 && (Number(q.total) || 0) - (receivedByQ[q.id] || 0) > 0).length;
-    const displayedQuotations = onlyOwing ? filteredQuotations.filter((q) => ((Number(q.total) || 0) - (receivedByQ[q.id] || 0)) > 0) : filteredQuotations;
+    const displayedAll = onlyOwing ? filteredQuotations.filter((q) => ((Number(q.total) || 0) - (receivedByQ[q.id] || 0)) > 0) : filteredQuotations;
+    // แยกงานที่ปรึกษาโครงการออกมาเป็นหัวข้อของตัวเอง (เก็บเงินรายเดือน ใช้ปุ่มต่างจากงานตรวจบ้าน)
+    const consultQuotations = displayedAll.filter((q) => q.propertyType === 'consult');
+    const displayedQuotations = displayedAll.filter((q) => q.propertyType !== 'consult');
+    // นับงวดที่รับเงินแล้วของใบที่ปรึกษา (ไว้โชว์ความคืบหน้า เช่น 2/6 เดือน)
+    const paidInstCount = (q) => {
+      const names = new Set(transactions.filter((x) => x.type === 'in' && x.quotationId === q.id && x.installment).map((x) => x.installment));
+      return (q.installments || []).filter((i) => names.has(i.name)).length;
+    };
     return (
       <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
         <PaymentsModal />
@@ -2785,9 +2793,64 @@ export default function QuotationSystem() {
             </button>
           </div>
 
+          {/* ===== งานที่ปรึกษาโครงการ (แยกหัวข้อ เก็บเงินรายเดือน) ===== */}
+          {!loading && consultQuotations.length > 0 && (
+            <div className="mb-7">
+              <div className="flex items-center gap-2 mb-3">
+                <h2 className="font-bold text-stone-800 text-lg">👷 {bi('งานที่ปรึกษาโครงการ', 'Construction consulting')}</h2>
+                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">{consultQuotations.length}</span>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {consultQuotations.map((q) => {
+                  const st = qStatus(q);
+                  const received = receivedByQ[q.id] || 0;
+                  const nInst = (q.installments || []).length;
+                  const nPaid = paidInstCount(q);
+                  return (
+                    <div key={q.id} className="bg-white border border-stone-200 rounded-lg p-4 border-l-4 border-l-blue-500">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="min-w-0">
+                          <p className="font-bold text-stone-900 truncate">{q.customerName || t('noName')}</p>
+                          {q.project && <p className="text-sm text-stone-500 truncate">📋 {q.project}</p>}
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${STATUS_STYLE[st.key]}`}>{t(STATUS_KEY[st.key])}</span>
+                      </div>
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm mt-2">
+                        <span className="text-stone-500">{q.quotationNo}</span>
+                        <span className="text-stone-700">{bi('มูลค่า', 'Value')} <b>{baht(q.total)} ฿</b></span>
+                        <span className="text-emerald-700">{bi('รับแล้ว', 'Received')} <b>{baht(received)} ฿</b></span>
+                        {st.out > 0 && <span className="text-amber-700">{bi('ค้าง', 'Due')} <b>{baht(st.out)} ฿</b></span>}
+                      </div>
+                      {nInst > 0 && (
+                        <div className="mt-2">
+                          <div className="flex items-center justify-between text-xs text-stone-500 mb-1">
+                            <span>{bi('เก็บเงินแล้ว', 'Collected')} {nPaid}/{nInst} {bi('เดือน', 'months')}</span>
+                            <span>{Math.round((nPaid / nInst) * 100)}%</span>
+                          </div>
+                          <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-blue-500 rounded-full" style={{ width: `${(nPaid / nInst) * 100}%` }}></div></div>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        <button onClick={() => setPaymentQ(q)} className="flex-1 min-w-[130px] flex items-center justify-center gap-1.5 px-3 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold text-sm"><TrendingUp size={16} /> {bi('บันทึกยอดรับ', 'Record payment')}</button>
+                        <button onClick={() => setBillChoiceQ(q)} className="flex-1 min-w-[110px] flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white border border-violet-300 hover:bg-violet-50 text-violet-700 rounded-lg font-semibold text-sm"><Receipt size={16} /> {bi('เอกสาร', 'Documents')}</button>
+                        <button onClick={() => openProject(q)} className="p-2.5 bg-white border border-stone-300 hover:bg-stone-50 rounded-lg text-amber-600" title={bi('เอกสารโครงการ', 'Project documents')}><FolderOpen size={16} /></button>
+                        <button onClick={() => previewQuotation(q)} className="p-2.5 bg-white border border-stone-300 hover:bg-stone-50 rounded-lg text-stone-700" title={t('tipView')}><Eye size={16} /></button>
+                        <button onClick={() => editQuotation(q)} className="p-2.5 bg-white border border-stone-300 hover:bg-stone-50 rounded-lg text-stone-700" title={t('tipEdit')}><FileText size={16} /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {!loading && consultQuotations.length > 0 && displayedQuotations.length > 0 && (
+            <h2 className="font-bold text-stone-800 text-lg mb-3">🏠 {bi('งานตรวจบ้าน / คอนโด', 'Home / condo inspection')}</h2>
+          )}
+
           {loading ? (
             <div className="text-center py-12 text-stone-500">{t('loading')}</div>
-          ) : displayedQuotations.length === 0 ? (
+          ) : displayedAll.length === 0 ? (
             <div className="bg-white border border-stone-200 rounded-lg p-12 text-center">
               <FileText className="mx-auto text-stone-300 mb-3" size={48} />
               <p className="text-stone-500 mb-4">{searchTerm ? t('emptySearch') : t('emptyNone')}</p>
@@ -2797,7 +2860,7 @@ export default function QuotationSystem() {
                 </button>
               )}
             </div>
-          ) : (
+          ) : displayedQuotations.length === 0 ? null : (
             <div className="bg-white border border-stone-200 rounded-lg overflow-x-auto">
               <table className="w-full min-w-[640px]">
                 <thead className="bg-stone-50 border-b border-stone-200">
