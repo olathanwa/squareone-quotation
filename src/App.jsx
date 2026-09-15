@@ -965,7 +965,26 @@ export default function QuotationSystem() {
     });
   };
 
+  // งวดของงานออกแบบ: มัดจำ 50% ก่อนเริ่มงาน / ส่วนที่เหลือเมื่อส่งมอบแบบ
+  const buildDesignInstallments = (total) => {
+    const amt = Number(total) || 0;
+    const deposit = Math.round(amt / 2);
+    return [
+      { name: 'มัดจำก่อนเริ่มงานออกแบบ 50%', amount: deposit },
+      { name: 'เมื่อส่งมอบแบบ 50%', amount: amt - deposit },
+    ];
+  };
+
   const handleTypeChange = (type) => {
+    // งานออกแบบ: ไม่ใช้ตารางอัตรา/พื้นที่ตรวจ ราคาค่าออกแบบกรอกเอง (1 งาน)
+    if (type === 'design') {
+      const newItems = [...form.items];
+      if (newItems[0]) {
+        newItems[0] = { ...newItems[0], description: 'งานออกแบบ', subDescription: '', unit: 'งาน', quantity: 1, autoCalculated: false, details: [] };
+      }
+      setForm({ ...form, propertyType: type, propertyArea: '', items: newItems, installments: buildDesignInstallments(Number(newItems[0]?.price) || 0) });
+      return;
+    }
     // งานที่ปรึกษางานก่อสร้าง: เสนอราคารายเดือน ไม่ใช้ตารางอัตรา/พื้นที่ (จำนวน = เดือน, ราคากรอกเอง)
     if (type === 'consult') {
       const newItems = [...form.items];
@@ -1027,7 +1046,18 @@ export default function QuotationSystem() {
 
   const recalculateInstallments = () => setForm({ ...form, installments: form.propertyType === 'consult'
     ? buildMonthlyInstallments(Number(form.items[0]?.price) || 0, Number(form.items[0]?.quantity) || 1)
-    : autoCalculateInstallments(calcSubtotal(), form.propertyType) });
+    : form.propertyType === 'design'
+      ? buildDesignInstallments(calcSubtotal())
+      : autoCalculateInstallments(calcSubtotal(), form.propertyType) });
+
+  // งานออกแบบ: แก้ค่าออกแบบแล้วคำนวณงวด 50/50 ใหม่ให้ตรงกันเสมอ
+  const updateDesignPrice = (value) => {
+    const newItems = [...form.items];
+    if (newItems[0]) newItems[0] = { ...newItems[0], price: value, autoCalculated: false };
+    const others = newItems.slice(1).reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.price) || 0), 0);
+    const total = (Number(value) || 0) * (Number(newItems[0]?.quantity) || 1) + others;
+    setForm({ ...form, items: newItems, installments: buildDesignInstallments(total) });
+  };
 
   const updateItem = (idx, field, value) => {
     const newItems = [...form.items];
@@ -2162,10 +2192,10 @@ export default function QuotationSystem() {
     const totalOut = periodTxns.filter((t) => t.type === 'out').reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const net = totalIn - totalOut;
     // รายรับแยกตามประเภทงาน (ดูจากใบเสนอราคาที่เงินผูกอยู่): ตรวจบ้าน/คอนโด vs ที่ปรึกษา vs ไม่ผูกใบ
-    const incomeByType = { inspect: 0, consult: 0, other: 0 };
+    const incomeByType = { inspect: 0, consult: 0, design: 0, other: 0 };
     periodTxns.filter((t) => t.type === 'in').forEach((t) => {
       const q = t.quotationId ? quotations.find((x) => x.id === t.quotationId) : null;
-      const key = q ? (q.propertyType === 'consult' ? 'consult' : 'inspect') : 'other';
+      const key = q ? (q.propertyType === 'consult' || q.propertyType === 'design' ? q.propertyType : 'inspect') : 'other';
       incomeByType[key] += Number(t.amount) || 0;
     });
     const receivedByQ = {};
@@ -2269,6 +2299,7 @@ export default function QuotationSystem() {
                 {[
                   { key: 'inspect', icon: '🏠', label: bi('งานตรวจบ้าน / คอนโด', 'Home / condo inspection'), color: 'bg-emerald-500' },
                   { key: 'consult', icon: '👷', label: bi('งานที่ปรึกษางานก่อสร้าง', 'Construction consulting'), color: 'bg-blue-500' },
+                  { key: 'design', icon: '🎨', label: bi('งานออกแบบ', 'Design'), color: 'bg-pink-500' },
                   { key: 'other', icon: '📦', label: bi('อื่นๆ (ไม่ผูกใบเสนอราคา)', 'Other (no quotation)'), color: 'bg-stone-400' },
                 ].filter((r) => incomeByType[r.key] > 0).map((r) => {
                   const amt = incomeByType[r.key];
@@ -2681,7 +2712,8 @@ export default function QuotationSystem() {
     const displayedAll = onlyOwing ? filteredQuotations.filter((q) => ((Number(q.total) || 0) - (receivedByQ[q.id] || 0)) > 0) : filteredQuotations;
     // แยกงานที่ปรึกษาโครงการออกมาเป็นหัวข้อของตัวเอง (เก็บเงินรายเดือน ใช้ปุ่มต่างจากงานตรวจบ้าน)
     const consultQuotations = displayedAll.filter((q) => q.propertyType === 'consult');
-    const displayedQuotations = displayedAll.filter((q) => q.propertyType !== 'consult');
+    const designQuotations = displayedAll.filter((q) => q.propertyType === 'design');
+    const displayedQuotations = displayedAll.filter((q) => q.propertyType !== 'consult' && q.propertyType !== 'design');
     // นับงวดที่รับเงินแล้วของใบที่ปรึกษา (ไว้โชว์ความคืบหน้า เช่น 2/6 เดือน)
     const paidInstCount = (q) => {
       const names = new Set(transactions.filter((x) => x.type === 'in' && x.quotationId === q.id && x.installment).map((x) => x.installment));
@@ -2793,21 +2825,24 @@ export default function QuotationSystem() {
             </button>
           </div>
 
-          {/* ===== งานที่ปรึกษาโครงการ (แยกหัวข้อ เก็บเงินรายเดือน) ===== */}
-          {!loading && consultQuotations.length > 0 && (
-            <div className="mb-7">
+          {/* ===== งานโครงการ (ที่ปรึกษา / ออกแบบ) แยกหัวข้อ พร้อมปุ่มบันทึกยอดรับ + เอกสาร ===== */}
+          {!loading && [
+            { list: consultQuotations, icon: '👷', title: bi('งานที่ปรึกษาโครงการ', 'Construction consulting'), badge: 'bg-blue-100 text-blue-700', accent: 'border-l-blue-500', bar: 'bg-blue-500', unit: bi('เดือน', 'months') },
+            { list: designQuotations, icon: '🎨', title: bi('งานออกแบบ', 'Design'), badge: 'bg-pink-100 text-pink-700', accent: 'border-l-pink-500', bar: 'bg-pink-500', unit: bi('งวด', 'installments') },
+          ].filter((g) => g.list.length > 0).map((g) => (
+            <div key={g.title} className="mb-7">
               <div className="flex items-center gap-2 mb-3">
-                <h2 className="font-bold text-stone-800 text-lg">👷 {bi('งานที่ปรึกษาโครงการ', 'Construction consulting')}</h2>
-                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">{consultQuotations.length}</span>
+                <h2 className="font-bold text-stone-800 text-lg">{g.icon} {g.title}</h2>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${g.badge}`}>{g.list.length}</span>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {consultQuotations.map((q) => {
+                {g.list.map((q) => {
                   const st = qStatus(q);
                   const received = receivedByQ[q.id] || 0;
                   const nInst = (q.installments || []).length;
                   const nPaid = paidInstCount(q);
                   return (
-                    <div key={q.id} className="bg-white border border-stone-200 rounded-lg p-4 border-l-4 border-l-blue-500">
+                    <div key={q.id} className={`bg-white border border-stone-200 rounded-lg p-4 border-l-4 ${g.accent}`}>
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <div className="min-w-0">
                           <p className="font-bold text-stone-900 truncate">{q.customerName || t('noName')}</p>
@@ -2824,10 +2859,10 @@ export default function QuotationSystem() {
                       {nInst > 0 && (
                         <div className="mt-2">
                           <div className="flex items-center justify-between text-xs text-stone-500 mb-1">
-                            <span>{bi('เก็บเงินแล้ว', 'Collected')} {nPaid}/{nInst} {bi('เดือน', 'months')}</span>
+                            <span>{bi('เก็บเงินแล้ว', 'Collected')} {nPaid}/{nInst} {g.unit}</span>
                             <span>{Math.round((nPaid / nInst) * 100)}%</span>
                           </div>
-                          <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-blue-500 rounded-full" style={{ width: `${(nPaid / nInst) * 100}%` }}></div></div>
+                          <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${g.bar}`} style={{ width: `${(nPaid / nInst) * 100}%` }}></div></div>
                         </div>
                       )}
                       <div className="flex flex-wrap gap-2 mt-3">
@@ -2842,9 +2877,9 @@ export default function QuotationSystem() {
                 })}
               </div>
             </div>
-          )}
+          ))}
 
-          {!loading && consultQuotations.length > 0 && displayedQuotations.length > 0 && (
+          {!loading && (consultQuotations.length > 0 || designQuotations.length > 0) && displayedQuotations.length > 0 && (
             <h2 className="font-bold text-stone-800 text-lg mb-3">🏠 {bi('งานตรวจบ้าน / คอนโด', 'Home / condo inspection')}</h2>
           )}
 
@@ -3015,7 +3050,7 @@ export default function QuotationSystem() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ประเภทอาคาร', 'Property Type')}</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ประเภทงาน', 'Work type')}</label>
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => handleTypeChange('house')} className={`px-4 py-2 rounded font-semibold transition ${form.propertyType === 'house' ? 'bg-slate-900 text-white' : 'bg-white border border-stone-300 text-stone-700 hover:border-stone-500'}`}>
                   🏠 {bi('บ้าน', 'House')}
@@ -3023,12 +3058,21 @@ export default function QuotationSystem() {
                 <button type="button" onClick={() => handleTypeChange('condo')} className={`px-4 py-2 rounded font-semibold transition ${form.propertyType === 'condo' ? 'bg-slate-900 text-white' : 'bg-white border border-stone-300 text-stone-700 hover:border-stone-500'}`}>
                   🏢 {bi('คอนโด', 'Condo')}
                 </button>
-                <button type="button" onClick={() => handleTypeChange('consult')} className={`col-span-2 px-4 py-2 rounded font-semibold transition ${form.propertyType === 'consult' ? 'bg-slate-900 text-white' : 'bg-white border border-stone-300 text-stone-700 hover:border-stone-500'}`}>
-                  👷 {bi('ที่ปรึกษางานก่อสร้าง (รายเดือน)', 'Construction consulting (monthly)')}
+                <button type="button" onClick={() => handleTypeChange('consult')} className={`px-4 py-2 rounded font-semibold transition ${form.propertyType === 'consult' ? 'bg-slate-900 text-white' : 'bg-white border border-stone-300 text-stone-700 hover:border-stone-500'}`}>
+                  👷 {bi('ที่ปรึกษาก่อสร้าง', 'Consulting')}
+                </button>
+                <button type="button" onClick={() => handleTypeChange('design')} className={`px-4 py-2 rounded font-semibold transition ${form.propertyType === 'design' ? 'bg-slate-900 text-white' : 'bg-white border border-stone-300 text-stone-700 hover:border-stone-500'}`}>
+                  🎨 {bi('งานออกแบบ', 'Design')}
                 </button>
               </div>
             </div>
-            {form.propertyType !== 'consult' ? (
+            {form.propertyType === 'design' ? (
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ค่าออกแบบ (บาท)', 'Design fee (THB)')}</label>
+              <input type="number" value={form.items[0]?.price ?? ''} onChange={(e) => updateDesignPrice(e.target.value)} placeholder={bi('เช่น 50000', 'e.g. 50000')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+              <p className="text-xs text-stone-400 mt-1">{bi('งวดงานคำนวณให้อัตโนมัติ: มัดจำ 50% / ส่งมอบแบบ 50% · เพิ่มรายละเอียดงานได้ที่รายการด้านล่าง', 'Installments auto: 50% deposit / 50% on delivery · add scope details below')}</p>
+            </div>
+            ) : form.propertyType !== 'consult' ? (
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">{bi('พื้นที่ใช้สอย (ตร.ม.)', 'Usable Area (sq.m.)')}</label>
               <input type="number" value={form.propertyArea} onChange={(e) => handleAreaChange(e.target.value)} placeholder={form.propertyType === 'house' ? bi('เช่น 121', 'e.g. 121') : bi('เช่น 35', 'e.g. 35')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
@@ -3047,7 +3091,7 @@ export default function QuotationSystem() {
             )}
           </div>
 
-          {form.propertyArea && form.propertyType !== 'consult' && (
+          {form.propertyArea && form.propertyType !== 'consult' && form.propertyType !== 'design' && (
             <div className={`mt-4 p-3 rounded ${areaInRange ? 'bg-emerald-100 border border-emerald-300' : 'bg-red-100 border border-red-300'}`}>
               {areaInRange ? (
                 <p className="text-emerald-900 text-sm">
