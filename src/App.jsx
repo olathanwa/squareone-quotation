@@ -421,6 +421,9 @@ export default function QuotationSystem() {
   const [paymentQ, setPaymentQ] = useState(null); // โครงการที่กำลังจัดการรับเงินรายงวด
   const [billChoiceQ, setBillChoiceQ] = useState(null);
   const [billingQid, setBillingQid] = useState(null); // โครงการที่ปรึกษาที่เลือกอยู่ในหน้าใบวางบิล
+  const [docs, setDocs] = useState([]); // ทะเบียนเอกสารที่ออกแล้ว (ใบวางบิล/ใบเสร็จ)
+  const [docFilter, setDocFilter] = useState('all'); // all | bill | receipt
+  const [docSearch, setDocSearch] = useState('');
   const [showNewConsult, setShowNewConsult] = useState(false); // เปิดฟอร์มสร้างโครงการที่ปรึกษาในหน้าใบวางบิล
   const [ncForm, setNcForm] = useState({ customerName: '', project: '', address: '', price: '', months: '' }); // ใบที่กำลังเลือกชนิดใบวางบิล (งวดเดียว/ยอดรวม)
   const [onlyOwing, setOnlyOwing] = useState(false); // กรองเฉพาะที่ยังค้างรับ (ไว้ตามเก็บเงิน)
@@ -434,6 +437,13 @@ export default function QuotationSystem() {
   const shareMode = !!shareId;
   const [shareLoaded, setShareLoaded] = useState(false);
   const [shareNotFound, setShareNotFound] = useState(false);
+  // ===== โหมดแชร์ใบวางบิลให้ลูกค้า (?bill=<id>&inst=<idx|total>) =====
+  const billParams = (() => { try { const p = new URLSearchParams(window.location.search); return { id: p.get('bill'), inst: p.get('inst') }; } catch { return { id: null, inst: null }; } })();
+  const billShareId = billParams.id;
+  const billShareMode = !!billShareId;
+  const [billShareHtml, setBillShareHtml] = useState('');
+  const [billShareState, setBillShareState] = useState('loading'); // loading | ready | notfound
+
   // ===== โหมดแชร์ใบเสร็จให้ลูกค้า (?receipt=<id>&inst=<idx?>) =====
   const receiptParams = (() => { try { const p = new URLSearchParams(window.location.search); return { id: p.get('receipt'), inst: p.get('inst') }; } catch { return { id: null, inst: null }; } })();
   const receiptId = receiptParams.id;
@@ -581,6 +591,17 @@ export default function QuotationSystem() {
         }
       } catch (e) { console.log('No transactions yet'); }
 
+      // โหลดทะเบียนเอกสาร (ใบวางบิล/ใบเสร็จที่ออกไปแล้ว)
+      try {
+        const dcRes = await window.storage.list('doc:');
+        if (dcRes && dcRes.keys && dcRes.keys.length > 0) {
+          const dcItems = await Promise.all(dcRes.keys.map(async (key) => {
+            try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : null; } catch { return null; }
+          }));
+          setDocs(dcItems.filter(Boolean).sort((a, b) => (b.date || '').localeCompare(a.date || '')));
+        }
+      } catch (e) { console.log('No documents yet'); }
+
       // โหลดนัดตรวจจากคลาวด์
       try {
         const apRes = await window.storage.list('appt:');
@@ -609,6 +630,29 @@ export default function QuotationSystem() {
       setShareLoaded(true);
     })();
   }, []);
+
+  // โหลดใบวางบิลที่แชร์มา (จากลิงก์ ?bill=<id>&inst=<idx|total>)
+  useEffect(() => {
+    if (!billShareId) return;
+    (async () => {
+      try {
+        const r = await window.storage.get('quotation:' + billShareId);
+        if (!r) { setBillShareState('notfound'); return; }
+        const q = JSON.parse(r.value);
+        const raw = billParams.inst;
+        if (raw == null || raw === 'total') {
+          if ((Number(q.total) || 0) <= 0) { setBillShareState('notfound'); return; }
+          setBillShareHtml(billHtmlTotal(q));
+        } else {
+          const idx = parseInt(raw, 10);
+          const inst = (q.installments || [])[idx];
+          if (!inst) { setBillShareState('notfound'); return; }
+          setBillShareHtml(billHtmlInstallment(q, inst, idx));
+        }
+        setBillShareState('ready');
+      } catch (e) { console.error(e); setBillShareState('notfound'); }
+    })();
+  }, [settings]); // สร้างใหม่เมื่อ settings (เช่น ตราประทับ) โหลดเสร็จ
 
   // โหลดใบเสร็จที่แชร์มา (จากลิงก์ ?receipt=<id>&inst=<idx?>) แล้วสร้าง HTML ใบเสร็จ
   useEffect(() => {
@@ -1232,12 +1276,14 @@ export default function QuotationSystem() {
       <div className="fixed inset-0 bg-black/50 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={(e) => { if (e.target === e.currentTarget) setReceiptLink(null); }}>
         <div className="bg-white w-full sm:max-w-lg sm:rounded-xl rounded-t-2xl">
           <div className="px-5 py-4 flex items-center justify-between text-white bg-slate-900 sm:rounded-t-xl">
-            <h3 className="font-bold text-lg flex items-center gap-2"><Share2 size={20} /> {bi('ลิงก์ใบเสร็จรับเงิน', 'Receipt link')}</h3>
+            <h3 className="font-bold text-lg flex items-center gap-2"><Share2 size={20} /> {receiptLink.kind === 'bill' ? bi('ลิงก์ใบวางบิล', 'Invoice link') : bi('ลิงก์ใบเสร็จรับเงิน', 'Receipt link')}</h3>
             <button onClick={() => setReceiptLink(null)} className="opacity-80 hover:opacity-100"><X size={22} /></button>
           </div>
           <div className="p-5 space-y-3">
             <p className="font-medium text-stone-800">{receiptLink.title}</p>
-            <p className="text-sm text-stone-500">{bi('ส่งลิงก์นี้ให้ลูกค้า เปิดดู/พิมพ์ใบเสร็จได้ (อ่านอย่างเดียว ไม่ต้องใส่รหัส)', 'Send this link to your customer to view/print the receipt (read-only, no password)')}</p>
+            <p className="text-sm text-stone-500">{receiptLink.kind === 'bill'
+              ? bi('ส่งลิงก์นี้ให้ลูกค้า เปิดดู/พิมพ์ใบวางบิลได้ (อ่านอย่างเดียว ไม่ต้องใส่รหัส)', 'Send this link to your customer to view/print the invoice (read-only, no password)')
+              : bi('ส่งลิงก์นี้ให้ลูกค้า เปิดดู/พิมพ์ใบเสร็จได้ (อ่านอย่างเดียว ไม่ต้องใส่รหัส)', 'Send this link to your customer to view/print the receipt (read-only, no password)')}</p>
             <input id="receiptlink-input" readOnly value={receiptLink.url} onClick={(e) => e.target.select()} className="w-full px-3 py-2.5 border border-stone-300 rounded-lg bg-stone-50 text-sm text-stone-700 font-mono" />
             <div className="flex gap-2">
               <button onClick={doCopyReceiptLink} className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold text-white ${linkCopied ? 'bg-emerald-600' : 'bg-emerald-700 hover:bg-emerald-800'}`}>
@@ -1270,20 +1316,78 @@ export default function QuotationSystem() {
     return svc && !name.includes(svc) ? `${svc} — ${name}` : name;
   };
 
+  // ===== เลขรันเอกสารของตัวเอง แยกตามชนิด + ปี พ.ศ. (INV-2569-001 / RC-2569-001) =====
+  const nextDocNo = (type, dateStr) => {
+    const year = Number(String(dateStr || '').slice(0, 4)) || new Date().getFullYear();
+    const prefix = `${type === 'bill' ? 'INV' : 'RC'}-${year + 543}-`;
+    let max = 0;
+    docs.forEach((d) => {
+      if (d.type === type && String(d.no || '').startsWith(prefix)) {
+        const n = parseInt(String(d.no).slice(prefix.length), 10);
+        if (!Number.isNaN(n) && n > max) max = n;
+      }
+    });
+    return `${prefix}${String(max + 1).padStart(3, '0')}`;
+  };
+
+  // จดเอกสารลงทะเบียน (ดูย้อนหลัง/พิมพ์ซ้ำได้จากหน้าทะเบียนเอกสาร)
+  const recordDoc = async (type, q, info) => {
+    const rec = {
+      id: `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      type, no: info.no, date: info.date,
+      quotationId: q.id, quotationNo: q.quotationNo || '',
+      customerName: q.customerName || '', project: q.project || '',
+      installment: info.installment || '', instIdx: info.idx == null ? null : info.idx,
+      amount: Number(info.amount) || 0,
+    };
+    try { await window.storage.set(`doc:${rec.id}`, JSON.stringify(rec)); } catch (e) { console.error(e); }
+    setDocs((prev) => [rec, ...prev]);
+    return rec;
+  };
+
   // ออกใบวางบิลของงวด/เดือนนั้น แล้วจดทะเบียนไว้ว่าออกเมื่อไหร่ เลขที่อะไร
   // (ออกซ้ำใช้เลขเดิม ไม่สร้างเลขใหม่ — กันเอกสารซ้ำซ้อนกับที่ส่งลูกค้าไปแล้ว)
   const issueBillForInstallment = async (q, inst, idx) => {
     const key = (inst?.name || '').trim();
+    let cur = q;
     const bills = { ...(q.bills || {}) };
     if (key && !bills[key]) {
-      bills[key] = {
-        no: `${q.quotationNo || 'INV'}-B${idx + 1}`,
-        date: new Date().toISOString().split('T')[0],
-        amount: Number(inst.amount) || 0,
-      };
-      await saveQuotationPatch(q, { bills });
+      const date = new Date().toISOString().split('T')[0];
+      const no = nextDocNo('bill', date);
+      bills[key] = { no, date, amount: Number(inst.amount) || 0 };
+      cur = await saveQuotationPatch(q, { bills });
+      await recordDoc('bill', cur, { no, date, installment: inst.name, idx, amount: Number(inst.amount) || 0 });
     }
-    printBillForInstallment(q, inst, idx);
+    printBillForInstallment(cur, inst, idx);
+  };
+
+  // ออกเลขใบวางบิลยอดรวม (ครั้งแรกเท่านั้น) แล้วคืนใบเสนอราคาที่อัปเดตแล้ว
+  const issueTotalBillNo = async (q) => {
+    const bills = { ...(q.bills || {}) };
+    if (bills.__total__) return q;
+    const date = new Date().toISOString().split('T')[0];
+    const no = nextDocNo('bill', date);
+    bills.__total__ = { no, date, amount: Number(q.total) || 0 };
+    const updated = await saveQuotationPatch(q, { bills });
+    await recordDoc('bill', updated, { no, date, installment: bi('ยอดรวมทั้งใบ', 'Grand total'), idx: null, amount: Number(q.total) || 0 });
+    return updated;
+  };
+
+  // ออกเลขใบเสร็จ (ครั้งแรกเท่านั้น) — idx = null คือใบเสร็จยอดรวม
+  const issueReceiptNo = async (q, idx) => {
+    const inst = idx == null ? null : (q.installments || [])[idx];
+    const key = idx == null ? '__total__' : (inst?.name || '').trim();
+    const receipts = { ...(q.receipts || {}) };
+    if (!key || receipts[key]) return q;
+    const date = new Date().toISOString().split('T')[0];
+    const no = nextDocNo('receipt', date);
+    const amount = idx == null
+      ? transactions.filter((tx) => tx.type === 'in' && tx.quotationId === q.id).reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0)
+      : Number(inst?.amount) || 0;
+    receipts[key] = { no, date, amount };
+    const updated = await saveQuotationPatch(q, { receipts });
+    await recordDoc('receipt', updated, { no, date, installment: idx == null ? bi('ยอดรวมที่ชำระแล้ว', 'Total received') : inst.name, idx, amount });
+    return updated;
   };
 
   const updateQuotationStatus = async (q, status) => {
@@ -1366,7 +1470,7 @@ export default function QuotationSystem() {
     const amt = Number(txn.amount) || Number(inst.amount) || 0;
     return buildReceiptHTML({
       company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
-      receiptNo: `${q.quotationNo || 'RC'}-R${idx + 1}`,
+      receiptNo: (q.receipts || {})[(inst?.name || '').trim()]?.no || `${q.quotationNo || 'RC'}-R${idx + 1}`,
       rows: [{ name: instItemName(q, inst), amount: amt, date: formatDate(txn.date), method: txn.method }],
       amount: amt, amountWords: words(amt, lng), dateStr: formatDate(txn.date), slips: txn.slip ? [txn.slip] : [], lang: lng, kind: 'inst', whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), hideBtn, stamp: settings.stampImage,
     });
@@ -1389,7 +1493,7 @@ export default function QuotationSystem() {
     const latest = [...qTxns].map((t) => t.date).filter(Boolean).sort().slice(-1)[0] || new Date().toISOString().slice(0, 10);
     return buildReceiptHTML({
       company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
-      receiptNo: `${q.quotationNo || 'RC'}-RT`,
+      receiptNo: (q.receipts || {}).__total__?.no || `${q.quotationNo || 'RC'}-RT`,
       rows, amount: sum, amountWords: words(sum, lng), dateStr: formatDate(latest), slips: slipsArr, lang: lng, kind: 'total', whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), hideBtn, stamp: settings.stampImage,
     });
   };
@@ -1400,10 +1504,15 @@ export default function QuotationSystem() {
   };
 
   // ลิงก์ใบเสร็จสำหรับส่งลูกค้า (?receipt=<id> หรือ &inst=<idx>)
+  const billUrl = (q, instIdx) => { const sl = linkSlug(q); return `${window.location.origin}${window.location.pathname}?bill=${q.id}&inst=${instIdx == null ? 'total' : instIdx}${sl ? `&n=${sl}` : ''}`; };
   const receiptUrl = (q, instIdx) => { const s = linkSlug(q); return `${window.location.origin}${window.location.pathname}?receipt=${q.id}${instIdx != null ? `&inst=${instIdx}` : ''}${s ? `&n=${s}` : ''}`; };
 
   // เปิดหน้า review ใบเสร็จ + สร้าง HTML ตามภาษาที่เลือก
-  const openReceiptReview = (q, idx) => { setReceiptReviewLang(lang); setReceiptReview({ q, idx }); };
+  const openReceiptReview = async (q, idx) => {
+    const cur = await issueReceiptNo(q, idx);
+    setReceiptReviewLang(lang);
+    setReceiptReview({ q: cur, idx });
+  };
   const buildReviewReceiptHtml = (rv, lng) => {
     if (!rv) return '';
     const q = rv.q;
@@ -1434,35 +1543,36 @@ export default function QuotationSystem() {
   };
 
   // ออกใบวางบิลของงวด (ขอเก็บเงินก่อนชำระ)
-  const printBillForInstallment = (q, inst, idx) => {
+  const billHtmlInstallment = (q, inst, idx) => {
     const amt = Number(inst.amount) || 0;
-    const html = buildBillHTML({
+    const rec = (q.bills || {})[(inst?.name || '').trim()];
+    return buildBillHTML({
       company: { name: q.companyName || settings.companyName, address: q.companyAddress || settings.companyAddress, phone: q.companyPhone || settings.companyPhone, taxId: q.companyTaxId || settings.companyTaxId },
       customer: q.customerName, customerAddress: q.address, project: q.project, quotationNo: q.quotationNo,
-      billNo: `${q.quotationNo || 'INV'}-B${idx + 1}`,
+      billNo: (q.bills || {})[(inst?.name || '').trim()]?.no || `${q.quotationNo || 'INV'}-B${idx + 1}`,
       itemName: instItemName(q, inst), amount: amt, amountWords: numberToThaiWords(amt),
-      dateStr: formatDate(new Date().toISOString().slice(0, 10)), bankInfo: q.bankInfo, showQR: q.showQR !== false, lang, whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), stamp: settings.stampImage,
+      dateStr: formatDate(rec?.date || new Date().toISOString().slice(0, 10)), bankInfo: q.bankInfo, showQR: q.showQR !== false, lang, whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), stamp: settings.stampImage,
     });
-    const w = window.open('', '_blank');
-    if (w) { w.document.write(html); w.document.close(); }
-    else downloadFile(html, `ใบวางบิล_${q.quotationNo || 'INV'}.html`, 'text/html;charset=utf-8');
   };
+  const printBillForInstallment = (q, inst, idx) => openOrDownload(billHtmlInstallment(q, inst, idx), `ใบวางบิล_${q.quotationNo || 'INV'}.html`);
 
   // ใบวางบิลยอดรวม: วางบิลทั้งยอดของใบเสนอราคาในใบเดียว (เลขที่บิลลงท้าย -BT)
-  const printTotalBill = (q) => {
+  const billHtmlTotal = (q) => {
     const amt = Number(q.total) || 0;
-    if (amt <= 0) { alert(bi('ใบนี้ยังไม่มียอดรวม — ใส่รายการ/ราคาก่อน', 'This quotation has no total yet')); return; }
-    const html = buildBillHTML({
+    const rec = (q.bills || {}).__total__;
+    return buildBillHTML({
       company: { name: q.companyName || settings.companyName, address: q.companyAddress || settings.companyAddress, phone: q.companyPhone || settings.companyPhone, taxId: q.companyTaxId || settings.companyTaxId },
       customer: q.customerName, customerAddress: q.address, project: q.project, quotationNo: q.quotationNo,
-      billNo: `${q.quotationNo || 'INV'}-BT`,
+      billNo: (q.bills || {}).__total__?.no || `${q.quotationNo || 'INV'}-BT`,
       itemName: bi(`ค่าบริการตามใบเสนอราคาเลขที่ ${q.quotationNo || '-'} (ยอดรวมทั้งสิ้น)`, `Services per quotation ${q.quotationNo || '-'} (grand total)`),
       amount: amt, amountWords: numberToThaiWords(amt),
-      dateStr: formatDate(new Date().toISOString().slice(0, 10)), bankInfo: q.bankInfo, showQR: q.showQR !== false, lang, whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), stamp: settings.stampImage,
+      dateStr: formatDate(rec?.date || new Date().toISOString().slice(0, 10)), bankInfo: q.bankInfo, showQR: q.showQR !== false, lang, whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), stamp: settings.stampImage,
     });
-    const w = window.open('', '_blank');
-    if (w) { w.document.write(html); w.document.close(); }
-    else downloadFile(html, `ใบวางบิลยอดรวม_${q.quotationNo || 'INV'}.html`, 'text/html;charset=utf-8');
+  };
+  const printTotalBill = async (qIn) => {
+    if ((Number(qIn.total) || 0) <= 0) { alert(bi('ใบนี้ยังไม่มียอดรวม — ใส่รายการ/ราคาก่อน', 'This quotation has no total yet')); return; }
+    const q = await issueTotalBillNo(qIn);
+    openOrDownload(billHtmlTotal(q), `ใบวางบิลยอดรวม_${q.quotationNo || 'INV'}.html`);
   };
 
   // ป็อปอัปเลือกชนิดใบวางบิล: งวดเดียว (งวดถัดไปที่ยังไม่จ่าย) หรือ ยอดรวม
@@ -1940,6 +2050,24 @@ export default function QuotationSystem() {
 
   // ===== โหมดแชร์ลิงก์: ลูกค้าเปิดลิงก์เห็นใบเสนอราคาอย่างเดียว (ข้ามด่านรหัส/รายการ) =====
   // ===== โหมดแชร์ใบเสร็จ (?receipt=) — แสดงใบเสร็จเต็มจอ พิมพ์ได้ =====
+  if (billShareMode) {
+    if (billShareState === 'notfound') {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-stone-100 p-6 text-center" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+          <p className="text-stone-500">{bi('ไม่พบใบวางบิลนี้ (อาจถูกลบไปแล้ว)', 'Invoice not found (it may have been deleted)')}</p>
+        </div>
+      );
+    }
+    if (billShareState !== 'ready') {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-stone-100" style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+          <p className="text-stone-500">{bi('กำลังโหลดใบวางบิล…', 'Loading invoice…')}</p>
+        </div>
+      );
+    }
+    return <iframe title="invoice" srcDoc={billShareHtml} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', border: 0, background: '#fff' }} />;
+  }
+
   if (receiptMode) {
     if (receiptShareState === 'notfound') {
       return (
@@ -2783,6 +2911,100 @@ export default function QuotationSystem() {
     );
   }
 
+  // ===== ทะเบียนเอกสาร: ใบวางบิล/ใบเสร็จที่ออกไปแล้วทั้งหมด =====
+  if (view === 'docs') {
+    const kw = docSearch.trim().toLowerCase();
+    const rows = docs
+      .filter((d) => docFilter === 'all' || d.type === docFilter)
+      .filter((d) => !kw || [d.no, d.customerName, d.project, d.quotationNo, d.installment].some((v) => String(v || '').toLowerCase().includes(kw)))
+      .sort((a, b) => (b.date || '').localeCompare(a.date || '') || String(b.no).localeCompare(String(a.no)));
+    const sumRows = rows.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+    const reprint = async (d) => {
+      const q = quotations.find((x) => x.id === d.quotationId);
+      if (!q) { alert(bi('ไม่พบใบเสนอราคาของเอกสารนี้ (อาจถูกลบไปแล้ว)', 'Source quotation not found')); return; }
+      if (d.type === 'bill') {
+        if (d.instIdx == null) await printTotalBill(q);
+        else { const inst = (q.installments || [])[d.instIdx]; if (inst) await issueBillForInstallment(q, inst, d.instIdx); }
+      } else {
+        await openReceiptReview(q, d.instIdx == null ? null : d.instIdx);
+      }
+    };
+    const shareDoc = (d) => {
+      const q = quotations.find((x) => x.id === d.quotationId);
+      if (!q) { alert(bi('ไม่พบใบเสนอราคาของเอกสารนี้', 'Source quotation not found')); return; }
+      setLinkCopied(false);
+      setReceiptLink(d.type === 'bill'
+        ? { kind: 'bill', url: billUrl(q, d.instIdx == null ? null : d.instIdx), title: `${d.no} · ${d.customerName || ''}` }
+        : { kind: 'receipt', url: receiptUrl(q, d.instIdx == null ? undefined : d.instIdx), title: `${d.no} · ${d.customerName || ''}` });
+    };
+    const exportDocsCSV = () => {
+      const header = ['DocNo', 'Type', 'Date', 'Customer', 'Project', 'Detail', 'QuotationNo', 'Amount'];
+      const lines = [header.map(csvCell).join(',')];
+      rows.forEach((d) => lines.push([
+        d.no, d.type === 'bill' ? 'Invoice' : 'Receipt', d.date, d.customerName, d.project, d.installment, d.quotationNo, Number(d.amount) || 0,
+      ].map(csvCell).join(',')));
+      downloadFile('\ufeff' + lines.join('\r\n'), 'documents.csv', 'text/csv;charset=utf-8');
+    };
+
+    return (
+      <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap'); * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }` + DARK_CSS}</style>
+        <ReceiptReviewOverlay />
+        <ReceiptLinkModal />
+        <div className="bg-slate-900 text-stone-50 border-b-4 border-violet-500">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 flex items-center gap-3">
+            <button onClick={() => setView('list')} className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm"><ArrowLeft size={18} /> {t('back')}</button>
+            <div className="flex items-center gap-2"><FileText size={24} className="text-violet-300" /><h1 className="text-xl font-bold">{bi('ทะเบียนเอกสาร', 'Document register')}</h1></div>
+            <div className="ml-auto flex items-center gap-2"><ThemeToggle /><LangToggle /></div>
+          </div>
+        </div>
+
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-lg overflow-hidden border border-stone-300">
+              {[['all', bi('ทั้งหมด', 'All')], ['bill', bi('ใบวางบิล', 'Invoices')], ['receipt', bi('ใบเสร็จ', 'Receipts')]].map(([k, l]) => (
+                <button key={k} onClick={() => setDocFilter(k)} className={`px-4 py-2 text-sm font-semibold ${docFilter === k ? 'bg-slate-900 text-amber-200' : 'bg-white text-stone-600'}`}>{l}</button>
+              ))}
+            </div>
+            <div className="flex-1 min-w-[180px] relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+              <input type="text" value={docSearch} onChange={(e) => setDocSearch(e.target.value)} placeholder={bi('ค้นหา เลขที่ / ลูกค้า / โครงการ', 'Search no. / customer / project')} className="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-lg" />
+            </div>
+            <button onClick={exportDocsCSV} className="flex items-center gap-1 px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm text-stone-700 hover:bg-stone-50"><Download size={14} /> CSV</button>
+          </div>
+
+          <div className="flex items-center justify-between text-sm text-stone-600">
+            <span>{bi('ทั้งหมด', 'Total')} {rows.length} {bi('ฉบับ', 'documents')}</span>
+            <span className="font-semibold text-stone-800">{baht(sumRows)} ฿</span>
+          </div>
+
+          {rows.length === 0 ? (
+            <div className="bg-white border border-stone-200 rounded-lg p-10 text-center text-stone-400">
+              <FileText size={40} className="mx-auto mb-2 opacity-40" />
+              <p>{bi('ยังไม่มีเอกสารที่ออก — ออกใบวางบิลหรือใบเสร็จแล้วจะมาแสดงที่นี่', 'No documents yet — issued invoices and receipts appear here')}</p>
+            </div>
+          ) : rows.map((d) => (
+            <div key={d.id} className={`bg-white border border-stone-200 rounded-lg p-3 border-l-4 ${d.type === 'bill' ? 'border-l-violet-500' : 'border-l-emerald-600'}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold text-stone-900">{d.no} <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-semibold ${d.type === 'bill' ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'}`}>{d.type === 'bill' ? bi('ใบวางบิล', 'Invoice') : bi('ใบเสร็จ', 'Receipt')}</span></p>
+                  <p className="text-sm text-stone-600 truncate">{d.customerName || t('noName')}{d.project ? ' · ' + d.project : ''}</p>
+                  {d.installment && <p className="text-xs text-stone-500 truncate">{d.installment}</p>}
+                  <p className="text-xs text-stone-400">{formatDate(d.date)} · {bi('อ้างอิง', 'Ref')} {d.quotationNo || '-'}</p>
+                </div>
+                <span className="font-bold text-stone-800 whitespace-nowrap">{baht(d.amount)} ฿</span>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <button onClick={() => reprint(d)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-stone-300 text-stone-700 rounded-lg text-sm"><Printer size={14} /> {bi('พิมพ์ซ้ำ', 'Reprint')}</button>
+                <button onClick={() => shareDoc(d)} className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"><Share2 size={14} /> {bi('ลิงก์', 'Link')}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // ===== หน้าใบวางบิลงานที่ปรึกษา — เลือกลูกค้า/โครงการ แล้วออกบิลรายเดือนได้เลย =====
   if (view === 'billing') {
     const projects = quotations
@@ -2889,7 +3111,10 @@ export default function QuotationSystem() {
                   {outstanding > 0 && <span className="text-amber-700">{bi('ค้าง', 'Due')} <b>{baht(outstanding)} ฿</b></span>}
                   <span className="text-violet-700">{bi('วางบิลแล้ว', 'Invoiced')} <b>{billedCount}/{insts.length}</b></span>
                 </div>
-                <button onClick={() => printTotalBill(q)} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-violet-300 hover:bg-violet-50 text-violet-700 rounded-lg font-semibold text-sm"><Receipt size={16} /> {bi('ใบวางบิลยอดรวม', 'Invoice (grand total)')} ({baht(Number(q.total) || 0)} ฿)</button>
+                <div className="flex gap-2 mt-3">
+                  <button onClick={() => printTotalBill(q)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-violet-300 hover:bg-violet-50 text-violet-700 rounded-lg font-semibold text-sm"><Receipt size={16} /> {bi('ใบวางบิลยอดรวม', 'Invoice (grand total)')} ({baht(Number(q.total) || 0)} ฿)</button>
+                  <button onClick={async () => { const cur = await issueTotalBillNo(q); setLinkCopied(false); setReceiptLink({ kind: 'bill', url: billUrl(cur, null), title: `${bi('ใบวางบิลยอดรวม', 'Invoice (grand total)')} · ${cur.customerName || ''}` }); }} className="flex items-center justify-center gap-1 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold whitespace-nowrap" title={bi('ส่งลิงก์ให้ลูกค้า', 'Share link')}><Share2 size={16} /> {bi('ลิงก์', 'Link')}</button>
+                </div>
               </div>
 
               {/* รายเดือน: ออกใบวางบิล → รับเงิน → ใบเสร็จ */}
@@ -2925,6 +3150,7 @@ export default function QuotationSystem() {
                     ) : (
                       <div className="mt-2 flex gap-2">
                         <button onClick={() => issueBillForInstallment(q, inst, idx)} className="flex items-center justify-center gap-1 px-4 py-2.5 bg-white border border-violet-300 text-violet-700 hover:bg-violet-50 rounded-lg font-medium whitespace-nowrap"><FileText size={16} /> {bill ? bi('พิมพ์บิลซ้ำ', 'Reprint') : t('billBtn')}</button>
+                        <button onClick={async () => { await issueBillForInstallment(q, inst, idx); const cur = quotations.find((x) => x.id === q.id) || q; setLinkCopied(false); setReceiptLink({ kind: 'bill', url: billUrl(cur, idx), title: `${bi('ใบวางบิล', 'Invoice')} · ${inst.name}` }); }} className="flex items-center justify-center gap-1 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium whitespace-nowrap" title={bi('ส่งลิงก์ให้ลูกค้า', 'Share link')}><Share2 size={16} /></button>
                         <button onClick={() => setTxnForm({ ...newTxn('in'), quotationId: q.id, quotationLabel: label, installment: inst.name, amount: inst.amount || '' })} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold"><TrendingUp size={16} /> {t('confirmReceived')}</button>
                       </div>
                     )}
@@ -2995,6 +3221,9 @@ export default function QuotationSystem() {
                 <button onClick={() => setView('billing')} className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-semibold">
                   <Receipt size={16} /> {bi('ใบวางบิลที่ปรึกษา', 'Consulting invoices')}
                 </button>
+                <button onClick={() => setView('docs')} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-amber-500/30 text-amber-200 rounded-lg text-sm">
+                  <FileText size={16} /> {bi('ทะเบียนเอกสาร', 'Documents')}
+                </button>
                 <button onClick={() => setView('calendar')} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-amber-500/30 text-amber-200 rounded-lg text-sm">
                   <Calendar size={16} /> {bi('ปฏิทินนัด', 'Calendar')}
                 </button>
@@ -3027,6 +3256,9 @@ export default function QuotationSystem() {
             </button>
             <button onClick={() => setView('billing')} className="md:hidden flex items-center justify-center gap-2 px-4 py-3 bg-violet-600 text-white rounded-lg font-semibold">
               <Receipt size={18} /> {bi('ใบวางบิลที่ปรึกษา', 'Consulting invoices')}
+            </button>
+            <button onClick={() => setView('docs')} className="md:hidden flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 text-amber-200 rounded-lg font-semibold">
+              <FileText size={18} /> {bi('ทะเบียนเอกสาร', 'Documents')}
             </button>
             <button onClick={() => setView('calendar')} className="md:hidden flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 text-amber-200 rounded-lg font-semibold">
               <Calendar size={18} /> {bi('ปฏิทินนัด', 'Calendar')}
