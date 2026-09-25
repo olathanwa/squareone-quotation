@@ -420,7 +420,9 @@ export default function QuotationSystem() {
   const [txnSort, setTxnSort] = useState('dateDesc'); // dateDesc | dateAsc | amountDesc
   const [paymentQ, setPaymentQ] = useState(null); // โครงการที่กำลังจัดการรับเงินรายงวด
   const [billChoiceQ, setBillChoiceQ] = useState(null);
-  const [billingQid, setBillingQid] = useState(null); // โครงการที่ปรึกษาที่เลือกอยู่ในหน้าใบวางบิล // ใบที่กำลังเลือกชนิดใบวางบิล (งวดเดียว/ยอดรวม)
+  const [billingQid, setBillingQid] = useState(null); // โครงการที่ปรึกษาที่เลือกอยู่ในหน้าใบวางบิล
+  const [showNewConsult, setShowNewConsult] = useState(false); // เปิดฟอร์มสร้างโครงการที่ปรึกษาในหน้าใบวางบิล
+  const [ncForm, setNcForm] = useState({ customerName: '', project: '', address: '', price: '', months: '' }); // ใบที่กำลังเลือกชนิดใบวางบิล (งวดเดียว/ยอดรวม)
   const [onlyOwing, setOnlyOwing] = useState(false); // กรองเฉพาะที่ยังค้างรับ (ไว้ตามเก็บเงิน)
   const [shareLinkQ, setShareLinkQ] = useState(null); // ใบที่กำลังแสดงลิงก์แชร์
   const [linkCopied, setLinkCopied] = useState(false);
@@ -976,6 +978,50 @@ export default function QuotationSystem() {
     ];
   };
 
+  // ค่าตั้งต้นรายการงานที่ปรึกษา (ใช้ทั้งในฟอร์มใบเสนอราคา และตอนสร้างโครงการจากหน้าใบวางบิล)
+  const CONSULT_ITEM = {
+    description: 'งานที่ปรึกษางานก่อสร้าง มีรายละเอียดการทำงานดังนี้',
+    subDescription: 'เสนอราคาเป็นรายเดือน (ระยะเวลาขึ้นอยู่กับระยะเวลางานก่อสร้าง)',
+    unit: 'เดือน',
+    details: [
+      'งานตรวจสอบเอกสารงานก่อสร้าง (แบบก่อสร้าง, สัญญา, แผนงาน และ BOQ)',
+      'งานตรวจสอบหน้างานก่อสร้างให้เป็นไปตามแบบ ขั้นต่ำสัปดาห์ละ 2 ครั้ง',
+      'งานตรวจสอบก่อนส่งงวดงาน',
+      'ติดตามงานก่อสร้างตามแผนงาน และประเมินความคืบหน้างานก่อสร้าง',
+      'ให้ความเห็นในการร่วมแก้ไขและปรับปรุงแบบและวัสดุก่อสร้าง',
+    ],
+  };
+
+  // สร้างโครงการที่ปรึกษาใหม่จากหน้าใบวางบิล (ไม่ต้องผ่านฟอร์มใบเสนอราคา)
+  const createConsultProject = async () => {
+    const name = (ncForm.customerName || '').trim();
+    if (!name) { alert(bi('กรุณากรอกชื่อลูกค้า', 'Customer name is required')); return; }
+    const price = Number(ncForm.price) || 0;
+    const months = Math.max(1, Math.min(120, Math.floor(Number(ncForm.months) || 1)));
+    const id = `q_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const data = {
+      ...getDefaultForm(),
+      id,
+      quotationNo: generateQuotationNo(),
+      date: new Date().toISOString().split('T')[0],
+      customerName: name,
+      project: (ncForm.project || '').trim(),
+      address: (ncForm.address || '').trim(),
+      propertyType: 'consult',
+      propertyArea: '',
+      items: [{ ...CONSULT_ITEM, quantity: months, price, autoCalculated: false }],
+      installments: buildMonthlyInstallments(price, months),
+      total: price * months,
+      status: 'accepted',
+      savedAt: new Date().toISOString(),
+    };
+    try { await window.storage.set(`quotation:${id}`, JSON.stringify(data)); } catch (e) { console.error(e); }
+    setQuotations((prev) => [data, ...prev]);
+    setBillingQid(id);
+    setShowNewConsult(false);
+    setNcForm({ customerName: '', project: '', address: '', price: '', months: '' });
+  };
+
   const handleTypeChange = (type) => {
     // งานออกแบบ: ไม่ใช้ตารางอัตรา/พื้นที่ตรวจ ราคาค่าออกแบบกรอกเอง (1 งาน)
     if (type === 'design') {
@@ -990,13 +1036,7 @@ export default function QuotationSystem() {
     if (type === 'consult') {
       const newItems = [...form.items];
       if (newItems[0]) {
-        newItems[0] = { ...newItems[0], description: 'งานที่ปรึกษางานก่อสร้าง มีรายละเอียดการทำงานดังนี้', subDescription: 'เสนอราคาเป็นรายเดือน (ระยะเวลาขึ้นอยู่กับระยะเวลางานก่อสร้าง)', unit: 'เดือน', autoCalculated: false, details: [
-          'งานตรวจสอบเอกสารงานก่อสร้าง (แบบก่อสร้าง, สัญญา, แผนงาน และ BOQ)',
-          'งานตรวจสอบหน้างานก่อสร้างให้เป็นไปตามแบบ ขั้นต่ำสัปดาห์ละ 2 ครั้ง',
-          'งานตรวจสอบก่อนส่งงวดงาน',
-          'ติดตามงานก่อสร้างตามแผนงาน และประเมินความคืบหน้างานก่อสร้าง',
-          'ให้ความเห็นในการร่วมแก้ไขและปรับปรุงแบบและวัสดุก่อสร้าง',
-        ] };
+        newItems[0] = { ...newItems[0], ...CONSULT_ITEM, autoCalculated: false };
       }
       setForm({ ...form, propertyType: type, items: newItems, installments: buildMonthlyInstallments(Number(newItems[0]?.price) || 0, Number(newItems[0]?.quantity) || 1) });
       return;
@@ -2782,8 +2822,47 @@ export default function QuotationSystem() {
                 <option key={pj.id} value={pj.id}>{pj.customerName || t('noName')}{pj.project ? ' · ' + pj.project : ''} ({pj.quotationNo})</option>
               ))}
             </select>
-            {projects.length === 0 && (
-              <p className="text-sm text-stone-500 mt-2">{bi('ยังไม่มีงานที่ปรึกษา — สร้างใบเสนอราคาประเภท "ที่ปรึกษาก่อสร้าง" ก่อน', 'No consulting projects yet — create a consulting quotation first')}</p>
+            {projects.length === 0 && !showNewConsult && (
+              <p className="text-sm text-stone-500 mt-2">{bi('ยังไม่มีโครงการที่ปรึกษา — กดปุ่มด้านล่างเพื่อสร้างโครงการแรก', 'No consulting projects yet — create your first one below')}</p>
+            )}
+
+            {!showNewConsult ? (
+              <button onClick={() => setShowNewConsult(true)} className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold"><Plus size={18} /> {bi('สร้างโครงการที่ปรึกษาใหม่', 'New consulting project')}</button>
+            ) : (
+              <div className="mt-3 border-t border-stone-200 pt-4 space-y-3">
+                <p className="font-semibold text-stone-800">{bi('สร้างโครงการที่ปรึกษาใหม่', 'New consulting project')}</p>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อลูกค้า', 'Customer name')} *</label>
+                  <input type="text" value={ncForm.customerName} onChange={(e) => setNcForm({ ...ncForm, customerName: e.target.value })} placeholder={bi('เช่น คุณสมชาย ใจดี', 'e.g. John Smith')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อโครงการ / อาคาร', 'Project / building')}</label>
+                  <input type="text" value={ncForm.project} onChange={(e) => setNcForm({ ...ncForm, project: e.target.value })} placeholder={bi('เช่น อาคารสำนักงาน ABC', 'e.g. ABC Office Building')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ที่อยู่หน้างาน', 'Site address')}</label>
+                  <textarea value={ncForm.address} onChange={(e) => setNcForm({ ...ncForm, address: e.target.value })} rows="2" placeholder={bi('เช่น 99 ถ.นิมมาน อ.เมือง จ.เชียงใหม่', 'e.g. 99 Nimman Rd, Chiang Mai')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ราคาต่อเดือน (บาท)', 'Price per month')}</label>
+                    <input type="number" value={ncForm.price} onChange={(e) => setNcForm({ ...ncForm, price: e.target.value })} placeholder={bi('เช่น 15000', 'e.g. 15000')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">{bi('จำนวนเดือน', 'Months')}</label>
+                    <input type="number" value={ncForm.months} onChange={(e) => setNcForm({ ...ncForm, months: e.target.value })} placeholder={bi('เช่น 6', 'e.g. 6')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                  </div>
+                </div>
+                {(Number(ncForm.price) > 0 && Number(ncForm.months) > 0) && (
+                  <p className="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded p-2">
+                    {bi('มูลค่าโครงการ', 'Project value')} <b>{baht(Number(ncForm.price) * Math.floor(Number(ncForm.months)))} ฿</b> · {bi('แบ่งเป็น', 'split into')} {Math.floor(Number(ncForm.months))} {bi('งวดรายเดือน (เบิกก่อนวันที่ 5 ของเดือน)', 'monthly installments')}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={() => { setShowNewConsult(false); setNcForm({ customerName: '', project: '', address: '', price: '', months: '' }); }} className="px-4 py-2.5 bg-white border border-stone-300 text-stone-600 rounded-lg font-medium">{bi('ยกเลิก', 'Cancel')}</button>
+                  <button onClick={createConsultProject} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold"><Save size={16} /> {bi('บันทึกโครงการ', 'Save project')}</button>
+                </div>
+              </div>
             )}
           </div>
 
