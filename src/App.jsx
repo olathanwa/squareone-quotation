@@ -1212,6 +1212,39 @@ export default function QuotationSystem() {
   };
 
   // อัปเดตสถานะงานของโครงการ
+  // บันทึกการแก้ไขบางส่วนของใบเสนอราคา (ใช้กับทะเบียนใบวางบิล)
+  const saveQuotationPatch = async (q, patch) => {
+    const updated = { ...q, ...patch };
+    try { await window.storage.set(`quotation:${q.id}`, JSON.stringify(updated)); } catch (e) { console.error(e); }
+    setQuotations((prev) => prev.map((x) => (x.id === q.id ? updated : x)));
+    if (paymentQ && paymentQ.id === q.id) setPaymentQ(updated);
+    return updated;
+  };
+
+  // ชื่อรายการในใบวางบิล/ใบเสร็จของแต่ละงวด — ใส่ชื่อบริการนำหน้าให้ลูกค้าอ่านเข้าใจ
+  // เช่น "งานที่ปรึกษาตรวจสอบอาคาร — เดือนที่ 3 (เบิกก่อนวันที่ 5 ของเดือน)"
+  const instItemName = (q, inst) => {
+    const svc = (q?.items?.[0]?.description || '').trim();
+    const name = (inst?.name || '').trim();
+    return svc && !name.includes(svc) ? `${svc} — ${name}` : name;
+  };
+
+  // ออกใบวางบิลของงวด/เดือนนั้น แล้วจดทะเบียนไว้ว่าออกเมื่อไหร่ เลขที่อะไร
+  // (ออกซ้ำใช้เลขเดิม ไม่สร้างเลขใหม่ — กันเอกสารซ้ำซ้อนกับที่ส่งลูกค้าไปแล้ว)
+  const issueBillForInstallment = async (q, inst, idx) => {
+    const key = (inst?.name || '').trim();
+    const bills = { ...(q.bills || {}) };
+    if (key && !bills[key]) {
+      bills[key] = {
+        no: `${q.quotationNo || 'INV'}-B${idx + 1}`,
+        date: new Date().toISOString().split('T')[0],
+        amount: Number(inst.amount) || 0,
+      };
+      await saveQuotationPatch(q, { bills });
+    }
+    printBillForInstallment(q, inst, idx);
+  };
+
   const updateQuotationStatus = async (q, status) => {
     const updated = { ...q, status };
     try { await window.storage.set(`quotation:${q.id}`, JSON.stringify(updated)); } catch (e) { console.error(e); }
@@ -1293,7 +1326,7 @@ export default function QuotationSystem() {
     return buildReceiptHTML({
       company: companyOf(q), customer: q.customerName, project: q.project, quotationNo: q.quotationNo,
       receiptNo: `${q.quotationNo || 'RC'}-R${idx + 1}`,
-      rows: [{ name: inst.name, amount: amt, date: formatDate(txn.date), method: txn.method }],
+      rows: [{ name: instItemName(q, inst), amount: amt, date: formatDate(txn.date), method: txn.method }],
       amount: amt, amountWords: words(amt, lng), dateStr: formatDate(txn.date), slips: txn.slip ? [txn.slip] : [], lang: lng, kind: 'inst', whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), hideBtn, stamp: settings.stampImage,
     });
   };
@@ -1366,7 +1399,7 @@ export default function QuotationSystem() {
       company: { name: q.companyName || settings.companyName, address: q.companyAddress || settings.companyAddress, phone: q.companyPhone || settings.companyPhone, taxId: q.companyTaxId || settings.companyTaxId },
       customer: q.customerName, customerAddress: q.address, project: q.project, quotationNo: q.quotationNo,
       billNo: `${q.quotationNo || 'INV'}-B${idx + 1}`,
-      itemName: inst.name, amount: amt, amountWords: numberToThaiWords(amt),
+      itemName: instItemName(q, inst), amount: amt, amountWords: numberToThaiWords(amt),
       dateStr: formatDate(new Date().toISOString().slice(0, 10)), bankInfo: q.bankInfo, showQR: q.showQR !== false, lang, whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), stamp: settings.stampImage,
     });
     const w = window.open('', '_blank');
@@ -1405,12 +1438,19 @@ export default function QuotationSystem() {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <h3 className="font-bold text-lg flex items-center gap-2"><Receipt size={20} className="text-violet-700" /> {bi('ออกใบวางบิล', 'Create invoice')}</h3>
-              <p className="text-sm text-stone-500 truncate">{q.quotationNo} · {q.customerName || t('noName')}</p>
+              <p className="text-sm text-stone-500 truncate">{q.quotationNo}</p>
             </div>
             <button onClick={() => setBillChoiceQ(null)} className="p-1 text-stone-400 hover:text-stone-700 flex-shrink-0"><X size={22} /></button>
           </div>
+          {/* ข้อมูลที่จะขึ้นบนใบวางบิล — ตรวจก่อนออกเอกสารว่าวางบิลถูกเจ้า/ถูกโครงการ */}
+          <div className="bg-stone-50 border border-stone-200 rounded-lg p-3 text-sm space-y-1">
+            <div className="flex gap-2"><span className="text-stone-500 w-20 flex-shrink-0">{bi('ลูกค้า', 'Customer')}</span><span className="font-medium text-stone-800 min-w-0">{q.customerName || t('noName')}</span></div>
+            <div className="flex gap-2"><span className="text-stone-500 w-20 flex-shrink-0">{bi('โครงการ', 'Project')}</span><span className="text-stone-700 min-w-0">{q.project || '—'}</span></div>
+            {q.address && <div className="flex gap-2"><span className="text-stone-500 w-20 flex-shrink-0">{bi('ที่อยู่', 'Address')}</span><span className="text-stone-700 min-w-0">{q.address}</span></div>}
+          </div>
+
           {next ? (
-            <button onClick={() => { printBillForInstallment(q, next, idx); setBillChoiceQ(null); }} className="w-full text-left px-4 py-3 bg-white border border-stone-300 hover:border-violet-400 hover:bg-violet-50 rounded-lg">
+            <button onClick={() => { issueBillForInstallment(q, next, idx); setBillChoiceQ(null); }} className="w-full text-left px-4 py-3 bg-white border border-stone-300 hover:border-violet-400 hover:bg-violet-50 rounded-lg">
               <p className="font-semibold text-stone-800">{bi('วางบิลงวดเดียว', 'Single installment')} <span className="text-violet-700">({baht(next.amount)} ฿)</span></p>
               <p className="text-sm text-stone-500 mt-0.5">{bi('งวดที่', 'Installment')} {idx + 1} — {next.name}</p>
             </button>
@@ -1440,7 +1480,7 @@ export default function QuotationSystem() {
       <div className="fixed inset-0 bg-black/50 z-40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={(e) => { if (e.target === e.currentTarget) setPaymentQ(null); }}>
         <div className="bg-white w-full sm:max-w-lg sm:rounded-xl rounded-t-2xl max-h-[92vh] overflow-y-auto">
           <div className="sticky top-0 px-5 py-4 flex items-center justify-between text-white bg-slate-900">
-            <div className="min-w-0"><h3 className="font-bold text-lg">{t('payTitle')}</h3><p className="text-stone-300 text-sm truncate">{q.quotationNo} · {q.customerName}</p></div>
+            <div className="min-w-0"><h3 className="font-bold text-lg">{t('payTitle')}</h3><p className="text-stone-300 text-sm truncate">{q.quotationNo} · {q.customerName}</p>{q.project && <p className="text-stone-400 text-xs truncate">📋 {q.project}</p>}</div>
             <button onClick={() => setPaymentQ(null)} className="opacity-80 hover:opacity-100 flex-shrink-0"><X size={22} /></button>
           </div>
           <div className="p-5 space-y-3">
@@ -1462,14 +1502,19 @@ export default function QuotationSystem() {
               <p className="text-center text-stone-400 py-6">{t('noInstallments')}</p>
             ) : insts.map((inst, idx) => {
               const txn = findTxn(inst.name);
+              const bill = (q.bills || {})[(inst.name || '').trim()];
               return (
                 <div key={idx} className="border border-stone-200 rounded-lg p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-medium text-stone-800">{idx + 1}. {inst.name}</p>
-                      <p className="text-sm text-stone-500">{baht(inst.amount)} ฿</p>
+                      <p className="text-sm text-stone-500">{baht(inst.amount)} ฿{bill ? ` · ${bi('เลขที่บิล', 'Invoice no.')} ${bill.no}` : ''}</p>
                     </div>
-                    {txn && <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 whitespace-nowrap">✓ {t('receivedBadge')}</span>}
+                    {txn
+                      ? <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 whitespace-nowrap">✓ {t('receivedBadge')}</span>
+                      : bill
+                        ? <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-100 text-violet-700 whitespace-nowrap">{bi('วางบิลแล้ว', 'Invoiced')} {formatDate(bill.date)}</span>
+                        : <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-stone-100 text-stone-500 whitespace-nowrap">{bi('ยังไม่วางบิล', 'Not invoiced')}</span>}
                   </div>
                   {txn ? (
                     <div className="mt-2 space-y-2">
@@ -1477,13 +1522,13 @@ export default function QuotationSystem() {
                       <div className="flex flex-wrap items-center gap-2">
                         {txn.slip && <img src={txn.slip} alt="slip" className="w-9 h-9 rounded object-cover border border-stone-200" />}
                         <button onClick={() => openTxn('in', txn)} className="flex items-center gap-1 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-sm whitespace-nowrap"><Pencil size={14} /> {bi('แก้ไข', 'Edit')}</button>
-                        <button onClick={() => printBillForInstallment(q, inst, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-stone-300 text-stone-700 rounded-lg text-sm whitespace-nowrap"><FileText size={14} /> {t('billBtn')}</button>
+                        <button onClick={() => issueBillForInstallment(q, inst, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-stone-300 text-stone-700 rounded-lg text-sm whitespace-nowrap"><FileText size={14} /> {t('billBtn')}</button>
                         <button onClick={() => openReceiptReview(q, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-slate-900 text-amber-200 rounded-lg text-sm whitespace-nowrap"><Printer size={14} /> {t('receiptBtn')}</button>
                       </div>
                     </div>
                   ) : (
                     <div className="mt-2 flex gap-2">
-                      <button onClick={() => printBillForInstallment(q, inst, idx)} className="flex items-center justify-center gap-1 px-4 py-2.5 bg-white border border-stone-300 text-stone-700 rounded-lg font-medium whitespace-nowrap"><FileText size={16} /> {t('billBtn')}</button>
+                      <button onClick={() => issueBillForInstallment(q, inst, idx)} className="flex items-center justify-center gap-1 px-4 py-2.5 bg-white border border-violet-300 text-violet-700 hover:bg-violet-50 rounded-lg font-medium whitespace-nowrap"><FileText size={16} /> {bill ? bi('พิมพ์บิลซ้ำ', 'Reprint') : t('billBtn')}</button>
                       <button onClick={() => setTxnForm({ ...newTxn('in'), quotationId: q.id, quotationLabel: label, installment: inst.name, amount: inst.amount || '' })} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold"><TrendingUp size={16} /> {t('confirmReceived')}</button>
                     </div>
                   )}
@@ -2855,6 +2900,7 @@ export default function QuotationSystem() {
                         <span className="text-stone-700">{bi('มูลค่า', 'Value')} <b>{baht(q.total)} ฿</b></span>
                         <span className="text-emerald-700">{bi('รับแล้ว', 'Received')} <b>{baht(received)} ฿</b></span>
                         {st.out > 0 && <span className="text-amber-700">{bi('ค้าง', 'Due')} <b>{baht(st.out)} ฿</b></span>}
+                        {Object.keys(q.bills || {}).length > 0 && <span className="text-violet-700">{bi('วางบิลแล้ว', 'Invoiced')} <b>{Object.keys(q.bills).length}/{nInst}</b></span>}
                       </div>
                       {nInst > 0 && (
                         <div className="mt-2">
