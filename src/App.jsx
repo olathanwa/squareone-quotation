@@ -425,7 +425,9 @@ export default function QuotationSystem() {
   const [docFilter, setDocFilter] = useState('all'); // all | bill | receipt
   const [docSearch, setDocSearch] = useState('');
   const [showNewConsult, setShowNewConsult] = useState(false); // เปิดฟอร์มสร้างโครงการที่ปรึกษาในหน้าใบวางบิล
-  const [ncForm, setNcForm] = useState({ customerName: '', project: '', address: '', price: '', months: '' }); // ใบที่กำลังเลือกชนิดใบวางบิล (งวดเดียว/ยอดรวม)
+  const [ncForm, setNcForm] = useState({ customerName: '', project: '', address: '', price: '', months: '' });
+  const [editProjectOpen, setEditProjectOpen] = useState(false); // ฟอร์มแก้ไขข้อมูลโครงการในหน้าใบวางบิล
+  const [epForm, setEpForm] = useState({ customerName: '', project: '', address: '', price: '', months: '' }); // ใบที่กำลังเลือกชนิดใบวางบิล (งวดเดียว/ยอดรวม)
   const [onlyOwing, setOnlyOwing] = useState(false); // กรองเฉพาะที่ยังค้างรับ (ไว้ตามเก็บเงิน)
   const [shareLinkQ, setShareLinkQ] = useState(null); // ใบที่กำลังแสดงลิงก์แชร์
   const [linkCopied, setLinkCopied] = useState(false);
@@ -1064,6 +1066,50 @@ export default function QuotationSystem() {
     setBillingQid(id);
     setShowNewConsult(false);
     setNcForm({ customerName: '', project: '', address: '', price: '', months: '' });
+  };
+
+  // เปิดฟอร์มแก้ไขข้อมูลโครงการที่ปรึกษา (เติมค่าปัจจุบันให้ก่อน)
+  const openEditProject = (q) => {
+    setEpForm({
+      customerName: q.customerName || '',
+      project: q.project || '',
+      address: q.address || '',
+      price: q.items?.[0]?.price ?? '',
+      months: q.items?.[0]?.quantity ?? (q.installments || []).length,
+    });
+    setEditProjectOpen(true);
+  };
+
+  // บันทึกการแก้ไขข้อมูลโครงการ — ปรับงวดรายเดือนให้ตรงกับราคา/จำนวนเดือนใหม่
+  const saveEditProject = async (q) => {
+    const name = (epForm.customerName || '').trim();
+    if (!name) { alert(bi('กรุณากรอกชื่อลูกค้า', 'Customer name is required')); return; }
+    const price = Number(epForm.price) || 0;
+    const months = Math.max(1, Math.min(120, Math.floor(Number(epForm.months) || 1)));
+    const nextInsts = buildMonthlyInstallments(price, months);
+
+    // กันข้อมูลหาย: ถ้าลดจำนวนเดือน แล้วเดือนที่หายไปเคยวางบิล/รับเงินแล้ว ต้องยืนยันก่อน
+    const keepNames = new Set(nextInsts.map((i) => i.name));
+    const paidNames = new Set(transactions.filter((tx) => tx.type === 'in' && tx.quotationId === q.id && tx.installment).map((tx) => (tx.installment || '').trim()));
+    const dropped = (q.installments || []).filter((i) => !keepNames.has(i.name));
+    const droppedUsed = dropped.filter((i) => paidNames.has((i.name || '').trim()) || (q.bills || {})[(i.name || '').trim()]);
+    if (droppedUsed.length > 0) {
+      const list = droppedUsed.map((i) => i.name).join('\n');
+      if (!confirm(bi(`เดือนที่จะถูกตัดออกมีการวางบิล/รับเงินไปแล้ว:\n${list}\n\nยืนยันแก้ไขต่อหรือไม่? (ประวัติเอกสารยังอยู่ในทะเบียน)`, `These months already have invoices/payments:\n${list}\n\nContinue?`))) return;
+    }
+
+    const items = [...(q.items || [])];
+    if (items[0]) items[0] = { ...items[0], price, quantity: months, autoCalculated: false };
+    const others = items.slice(1).reduce((sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.price) || 0), 0);
+    await saveQuotationPatch(q, {
+      customerName: name,
+      project: (epForm.project || '').trim(),
+      address: (epForm.address || '').trim(),
+      items,
+      installments: nextInsts,
+      total: price * months + others,
+    });
+    setEditProjectOpen(false);
   };
 
   const handleTypeChange = (type) => {
@@ -3038,7 +3084,7 @@ export default function QuotationSystem() {
           {/* เลือกลูกค้า / โครงการ ที่จะวางบิล */}
           <div className="bg-white border border-stone-200 rounded-lg p-4">
             <label className="block text-sm font-medium text-stone-700 mb-1">👤 {bi('เลือกลูกค้า / โครงการที่จะวางบิล', 'Select customer / project to invoice')}</label>
-            <select value={billingQid || ''} onChange={(e) => setBillingQid(e.target.value || null)} className="w-full px-3 py-3 border border-stone-300 rounded-lg bg-white text-base">
+            <select value={billingQid || ''} onChange={(e) => { setBillingQid(e.target.value || null); setEditProjectOpen(false); }} className="w-full px-3 py-3 border border-stone-300 rounded-lg bg-white text-base">
               <option value="">{bi('— เลือกโครงการ —', '— Select project —')}</option>
               {projects.map((pj) => (
                 <option key={pj.id} value={pj.id}>{pj.customerName || t('noName')}{pj.project ? ' · ' + pj.project : ''} ({pj.quotationNo})</option>
@@ -3103,8 +3149,49 @@ export default function QuotationSystem() {
                     {q.project && <p className="text-sm text-stone-600 truncate">📋 {q.project}</p>}
                     {q.address && <p className="text-sm text-stone-500">{q.address}</p>}
                   </div>
-                  <span className="text-xs text-stone-500 whitespace-nowrap">{q.quotationNo}</span>
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <span className="text-xs text-stone-500 whitespace-nowrap">{q.quotationNo}</span>
+                    <button onClick={() => (editProjectOpen ? setEditProjectOpen(false) : openEditProject(q))} className="flex items-center gap-1 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-sm whitespace-nowrap"><Pencil size={14} /> {editProjectOpen ? bi('ยกเลิก', 'Cancel') : bi('แก้ไขข้อมูล', 'Edit')}</button>
+                  </div>
                 </div>
+
+                {editProjectOpen && (
+                  <div className="mt-3 pt-3 border-t border-stone-200 space-y-3">
+                    <p className="font-semibold text-stone-800">{bi('แก้ไขข้อมูลโครงการ', 'Edit project')}</p>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อลูกค้า', 'Customer name')} *</label>
+                      <input type="text" value={epForm.customerName} onChange={(e) => setEpForm({ ...epForm, customerName: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อโครงการ / อาคาร', 'Project / building')}</label>
+                      <input type="text" value={epForm.project} onChange={(e) => setEpForm({ ...epForm, project: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ที่อยู่หน้างาน', 'Site address')}</label>
+                      <textarea value={epForm.address} onChange={(e) => setEpForm({ ...epForm, address: e.target.value })} rows="2" className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ราคาต่อเดือน (บาท)', 'Price per month')}</label>
+                        <input type="number" value={epForm.price} onChange={(e) => setEpForm({ ...epForm, price: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">{bi('จำนวนเดือน', 'Months')}</label>
+                        <input type="number" value={epForm.months} onChange={(e) => setEpForm({ ...epForm, months: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+                      </div>
+                    </div>
+                    {(Number(epForm.price) > 0 && Number(epForm.months) > 0) && (
+                      <p className="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded p-2">
+                        {bi('มูลค่าใหม่', 'New value')} <b>{baht(Number(epForm.price) * Math.floor(Number(epForm.months)))} ฿</b> · {Math.floor(Number(epForm.months))} {bi('งวดรายเดือน', 'monthly installments')}
+                      </p>
+                    )}
+                    <p className="text-xs text-stone-400">{bi('เปลี่ยนราคา/จำนวนเดือน ระบบจะปรับงวดรายเดือนให้ใหม่ · เอกสารที่ออกไปแล้วยังอยู่ในทะเบียนเหมือนเดิม', 'Changing price/months rebuilds the monthly installments · issued documents stay in the register')}</p>
+                    <div className="flex gap-2">
+                      <button onClick={() => setEditProjectOpen(false)} className="px-4 py-2.5 bg-white border border-stone-300 text-stone-600 rounded-lg font-medium">{bi('ยกเลิก', 'Cancel')}</button>
+                      <button onClick={() => saveEditProject(q)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold"><Save size={16} /> {bi('บันทึกการแก้ไข', 'Save changes')}</button>
+                    </div>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm mt-3 pt-3 border-t border-stone-100">
                   <span className="text-stone-700">{bi('มูลค่า', 'Value')} <b>{baht(q.total)} ฿</b></span>
                   <span className="text-emerald-700">{bi('รับแล้ว', 'Received')} <b>{baht(received)} ฿</b></span>
