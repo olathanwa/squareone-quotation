@@ -420,6 +420,7 @@ export default function QuotationSystem() {
   const [txnSort, setTxnSort] = useState('dateDesc'); // dateDesc | dateAsc | amountDesc
   const [paymentQ, setPaymentQ] = useState(null); // โครงการที่กำลังจัดการรับเงินรายงวด
   const [billChoiceQ, setBillChoiceQ] = useState(null);
+  const [billMonthIdx, setBillMonthIdx] = useState(null); // งวด/เดือนที่เลือกในป็อปอัปออกใบวางบิล (null = ใช้งวดถัดไปที่ยังไม่จ่าย)
   const [billingQid, setBillingQid] = useState(null); // โครงการที่ปรึกษาที่เลือกอยู่ในหน้าใบวางบิล
   const [docs, setDocs] = useState([]); // ทะเบียนเอกสารที่ออกแล้ว (ใบวางบิล/ใบเสร็จ)
   const [docFilter, setDocFilter] = useState('all'); // all | bill | receipt
@@ -1407,11 +1408,16 @@ export default function QuotationSystem() {
     const year = Number(String(dateStr || '').slice(0, 4)) || new Date().getFullYear();
     const prefix = `${type === 'bill' ? 'INV' : 'RC'}-${year + 543}-`;
     let max = 0;
-    docs.forEach((d) => {
-      if (d.type === type && String(d.no || '').startsWith(prefix)) {
-        const n = parseInt(String(d.no).slice(prefix.length), 10);
-        if (!Number.isNaN(n) && n > max) max = n;
-      }
+    const bump = (no) => {
+      if (!String(no || '').startsWith(prefix)) return;
+      const n = parseInt(String(no).slice(prefix.length), 10);
+      if (!Number.isNaN(n) && n > max) max = n;
+    };
+    // ดูจากทะเบียนเอกสาร
+    docs.forEach((d) => { if (d.type === type) bump(d.no); });
+    // และจากเลขที่เก็บไว้ในใบเสนอราคาด้วย — กันเลขซ้ำถ้าทะเบียนโหลดไม่ครบ/ข้อมูลถูกกู้คืนมา
+    quotations.forEach((qq) => {
+      Object.values((type === 'bill' ? qq.bills : qq.receipts) || {}).forEach((rec) => bump(rec?.no));
     });
     return `${prefix}${String(max + 1).padStart(3, '0')}`;
   };
@@ -1668,7 +1674,10 @@ export default function QuotationSystem() {
     const insts = q.installments || [];
     const paidNames = new Set(transactions.filter((x) => x.type === 'in' && x.quotationId === q.id && x.installment).map((x) => x.installment));
     const idx = insts.findIndex((inst) => !paidNames.has(inst.name));
-    const next = idx === -1 ? null : insts[idx];
+    // ค่าตั้งต้น = งวดถัดไปที่ยังไม่จ่าย (ถ้าจ่ายครบแล้วใช้งวดสุดท้าย) — เลือกเดือนอื่นเองได้
+    const defaultIdx = idx !== -1 ? idx : Math.max(0, insts.length - 1);
+    const selIdx = billMonthIdx != null && insts[billMonthIdx] ? billMonthIdx : defaultIdx;
+    const selInst = insts[selIdx] || null;
     return (
       <div className="fixed inset-0 bg-black/50 z-40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={(e) => { if (e.target === e.currentTarget) setBillChoiceQ(null); }}>
         <div className="bg-white rounded-t-2xl sm:rounded-xl w-full sm:max-w-md p-5 space-y-3">
@@ -1686,13 +1695,30 @@ export default function QuotationSystem() {
             {q.address && <div className="flex gap-2"><span className="text-stone-500 w-20 flex-shrink-0">{bi('ที่อยู่', 'Address')}</span><span className="text-stone-700 min-w-0">{q.address}</span></div>}
           </div>
 
-          {next ? (
-            <button onClick={() => { issueBillForInstallment(q, next, idx); setBillChoiceQ(null); }} className="w-full text-left px-4 py-3 bg-white border border-stone-300 hover:border-violet-400 hover:bg-violet-50 rounded-lg">
-              <p className="font-semibold text-stone-800">{bi('วางบิลงวดเดียว', 'Single installment')} <span className="text-violet-700">({baht(next.amount)} ฿)</span></p>
-              <p className="text-sm text-stone-500 mt-0.5">{bi('งวดที่', 'Installment')} {idx + 1} — {next.name}</p>
-            </button>
+          {insts.length > 0 ? (
+            <div className="border border-stone-300 rounded-lg p-3 space-y-2">
+              <p className="font-semibold text-stone-800">{bi('วางบิลรายงวด / รายเดือน', 'Single installment / month')}</p>
+              <label className="block text-sm text-stone-600">{bi('เลือกงวดที่จะวางบิล', 'Choose which one to invoice')}</label>
+              <select value={selIdx} onChange={(e) => setBillMonthIdx(Number(e.target.value))} className="w-full px-3 py-2.5 border border-stone-300 rounded-lg bg-white text-base">
+                {insts.map((inst, i) => {
+                  const nm = (inst.name || '').trim();
+                  const isPaid = paidNames.has(inst.name);
+                  const isBilled = !!(q.bills || {})[nm];
+                  const tag = isPaid ? bi('รับเงินแล้ว', 'paid') : isBilled ? bi('วางบิลแล้ว', 'invoiced') : bi('ยังไม่วางบิล', 'not invoiced');
+                  return <option key={i} value={i}>{`${i + 1}. ${inst.name} · ${baht(inst.amount)} ฿ (${tag})`}</option>;
+                })}
+              </select>
+              {selInst && (
+                <button onClick={() => { issueBillForInstallment(q, selInst, selIdx); setBillChoiceQ(null); }} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-semibold">
+                  <Receipt size={18} /> {(q.bills || {})[(selInst.name || '').trim()] ? bi('พิมพ์บิลซ้ำ', 'Reprint invoice') : bi('ออกใบวางบิลงวดนี้', 'Create invoice')} ({baht(selInst.amount)} ฿)
+                </button>
+              )}
+              {idx !== -1 && selIdx !== idx && (
+                <button onClick={() => setBillMonthIdx(idx)} className="w-full text-sm text-blue-600 hover:underline">{bi(`ไปที่งวดถัดไปที่ยังไม่จ่าย (งวดที่ ${idx + 1})`, `Jump to next unpaid (no. ${idx + 1})`)}</button>
+              )}
+            </div>
           ) : (
-            <div className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-500">{insts.length ? bi('ทุกงวดรับเงินครบแล้ว — วางบิลได้เฉพาะยอดรวม', 'All installments paid — only grand total available') : t('noInstallments')}</div>
+            <div className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-500">{t('noInstallments')}</div>
           )}
           <button onClick={() => { printTotalBill(q); setBillChoiceQ(null); }} className="w-full text-left px-4 py-3 bg-white border border-stone-300 hover:border-violet-400 hover:bg-violet-50 rounded-lg">
             <p className="font-semibold text-stone-800">{bi('วางบิลยอดรวม', 'Grand total')} <span className="text-violet-700">({baht(Number(q.total) || 0)} ฿)</span></p>
@@ -3518,7 +3544,7 @@ export default function QuotationSystem() {
                       )}
                       <div className="flex flex-wrap gap-2 mt-3">
                         <button onClick={() => setPaymentQ(q)} className="flex-1 min-w-[130px] flex items-center justify-center gap-1.5 px-3 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold text-sm"><TrendingUp size={16} /> {bi('บันทึกยอดรับ', 'Record payment')}</button>
-                        <button onClick={() => setBillChoiceQ(q)} className="flex-1 min-w-[110px] flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white border border-violet-300 hover:bg-violet-50 text-violet-700 rounded-lg font-semibold text-sm"><Receipt size={16} /> {bi('เอกสาร', 'Documents')}</button>
+                        <button onClick={() => { setBillMonthIdx(null); setBillChoiceQ(q); }} className="flex-1 min-w-[110px] flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white border border-violet-300 hover:bg-violet-50 text-violet-700 rounded-lg font-semibold text-sm"><Receipt size={16} /> {bi('เอกสาร', 'Documents')}</button>
                         <button onClick={() => openProject(q)} className="p-2.5 bg-white border border-stone-300 hover:bg-stone-50 rounded-lg text-amber-600" title={bi('เอกสารโครงการ', 'Project documents')}><FolderOpen size={16} /></button>
                         <button onClick={() => previewQuotation(q)} className="p-2.5 bg-white border border-stone-300 hover:bg-stone-50 rounded-lg text-stone-700" title={t('tipView')}><Eye size={16} /></button>
                         {q.propertyType === 'consult' && (
@@ -3587,7 +3613,7 @@ export default function QuotationSystem() {
                         <div className="flex justify-center gap-1">
                           <button onClick={() => openProject(q)} className="p-2 hover:bg-amber-100 rounded text-amber-600" title={bi('เอกสารโครงการ', 'Project documents')}><FolderOpen size={16} /></button>
                           <button onClick={() => setPaymentQ(q)} className="p-2 hover:bg-emerald-100 rounded text-emerald-700" title={t('payTitle')}><TrendingUp size={16} /></button>
-                          <button onClick={() => setBillChoiceQ(q)} className="p-2 hover:bg-violet-100 rounded text-violet-700" title={bi('ออกใบวางบิล', 'Create invoice')}><Receipt size={16} /></button>
+                          <button onClick={() => { setBillMonthIdx(null); setBillChoiceQ(q); }} className="p-2 hover:bg-violet-100 rounded text-violet-700" title={bi('ออกใบวางบิล', 'Create invoice')}><Receipt size={16} /></button>
                           <button onClick={() => previewQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipView')}><Eye size={16} /></button>
                           <button onClick={() => { setLinkCopied(false); setShareLinkQ(q); }} className="p-2 hover:bg-blue-100 rounded text-blue-600" title={bi('ลิงก์ส่งลูกค้า', 'Share link')}><Share2 size={16} /></button>
                           <button onClick={() => duplicateQuotation(q)} className="p-2 hover:bg-stone-200 rounded text-stone-700" title={t('tipCopy')}><Copy size={16} /></button>
