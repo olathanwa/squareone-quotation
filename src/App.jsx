@@ -426,7 +426,7 @@ export default function QuotationSystem() {
   const [docSearch, setDocSearch] = useState('');
   const [showNewConsult, setShowNewConsult] = useState(false); // เปิดฟอร์มสร้างโครงการที่ปรึกษาในหน้าใบวางบิล
   const [ncForm, setNcForm] = useState({ customerName: '', project: '', address: '', price: '', months: '' });
-  const [editProjectOpen, setEditProjectOpen] = useState(false); // ฟอร์มแก้ไขข้อมูลโครงการในหน้าใบวางบิล
+  const [editProjectQid, setEditProjectQid] = useState(null); // โครงการที่กำลังแก้ไขข้อมูล (การ์ดหน้าแรก/หน้าใบวางบิล)
   const [epForm, setEpForm] = useState({ customerName: '', project: '', address: '', price: '', months: '' }); // ใบที่กำลังเลือกชนิดใบวางบิล (งวดเดียว/ยอดรวม)
   const [onlyOwing, setOnlyOwing] = useState(false); // กรองเฉพาะที่ยังค้างรับ (ไว้ตามเก็บเงิน)
   const [shareLinkQ, setShareLinkQ] = useState(null); // ใบที่กำลังแสดงลิงก์แชร์
@@ -1077,7 +1077,7 @@ export default function QuotationSystem() {
       price: q.items?.[0]?.price ?? '',
       months: q.items?.[0]?.quantity ?? (q.installments || []).length,
     });
-    setEditProjectOpen(true);
+    setEditProjectQid(q.id);
   };
 
   // บันทึกการแก้ไขข้อมูลโครงการ — ปรับงวดรายเดือนให้ตรงกับราคา/จำนวนเดือนใหม่
@@ -1109,8 +1109,48 @@ export default function QuotationSystem() {
       installments: nextInsts,
       total: price * months + others,
     });
-    setEditProjectOpen(false);
+    setEditProjectQid(null);
   };
+
+  // ฟอร์มแก้ไขข้อมูลโครงการที่ปรึกษา — ใช้ทั้งบนการ์ดหน้าแรกและหน้าใบวางบิล
+  // (เป็นฟังก์ชันคืน JSX ไม่ใช่คอมโพเนนต์ใหม่ เพื่อให้ช่องพิมพ์ไม่หลุดโฟกัสระหว่างพิมพ์)
+  const renderEditProjectForm = (q) => (
+    <div className="mt-3 pt-3 border-t border-stone-200 space-y-3 text-left">
+      <p className="font-semibold text-stone-800">{bi('แก้ไขข้อมูลโครงการ', 'Edit project')}</p>
+      <div>
+        <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อลูกค้า', 'Customer name')} *</label>
+        <input type="text" value={epForm.customerName} onChange={(e) => setEpForm({ ...epForm, customerName: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อโครงการ / อาคาร', 'Project / building')}</label>
+        <input type="text" value={epForm.project} onChange={(e) => setEpForm({ ...epForm, project: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ที่อยู่หน้างาน', 'Site address')}</label>
+        <textarea value={epForm.address} onChange={(e) => setEpForm({ ...epForm, address: e.target.value })} rows="2" className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ราคาต่อเดือน (บาท)', 'Price per month')}</label>
+          <input type="number" value={epForm.price} onChange={(e) => setEpForm({ ...epForm, price: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-stone-700 mb-1">{bi('จำนวนเดือน', 'Months')}</label>
+          <input type="number" value={epForm.months} onChange={(e) => setEpForm({ ...epForm, months: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
+        </div>
+      </div>
+      {(Number(epForm.price) > 0 && Number(epForm.months) > 0) && (
+        <p className="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded p-2">
+          {bi('มูลค่าใหม่', 'New value')} <b>{baht(Number(epForm.price) * Math.floor(Number(epForm.months)))} ฿</b> · {Math.floor(Number(epForm.months))} {bi('งวดรายเดือน', 'monthly installments')}
+        </p>
+      )}
+      <p className="text-xs text-stone-400">{bi('เปลี่ยนราคา/จำนวนเดือน ระบบจะปรับงวดรายเดือนให้ใหม่ · เอกสารที่ออกไปแล้วยังอยู่ในทะเบียนเหมือนเดิม', 'Changing price/months rebuilds the monthly installments · issued documents stay in the register')}</p>
+      <div className="flex gap-2">
+        <button onClick={() => setEditProjectQid(null)} className="px-4 py-2.5 bg-white border border-stone-300 text-stone-600 rounded-lg font-medium">{bi('ยกเลิก', 'Cancel')}</button>
+        <button onClick={() => saveEditProject(q)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold"><Save size={16} /> {bi('บันทึกการแก้ไข', 'Save changes')}</button>
+      </div>
+    </div>
+  );
 
   const handleTypeChange = (type) => {
     // งานออกแบบ: ไม่ใช้ตารางอัตรา/พื้นที่ตรวจ ราคาค่าออกแบบกรอกเอง (1 งาน)
@@ -3151,47 +3191,11 @@ export default function QuotationSystem() {
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
                     <span className="text-xs text-stone-500 whitespace-nowrap">{q.quotationNo}</span>
-                    <button onClick={() => (editProjectOpen ? setEditProjectOpen(false) : openEditProject(q))} className="flex items-center gap-1 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-sm whitespace-nowrap"><Pencil size={14} /> {editProjectOpen ? bi('ยกเลิก', 'Cancel') : bi('แก้ไขข้อมูล', 'Edit')}</button>
+                    <button onClick={() => (editProjectQid === q.id ? setEditProjectQid(null) : openEditProject(q))} className="flex items-center gap-1 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-sm whitespace-nowrap"><Pencil size={14} /> {editProjectQid === q.id ? bi('ยกเลิก', 'Cancel') : bi('แก้ไขข้อมูล', 'Edit')}</button>
                   </div>
                 </div>
 
-                {editProjectOpen && (
-                  <div className="mt-3 pt-3 border-t border-stone-200 space-y-3">
-                    <p className="font-semibold text-stone-800">{bi('แก้ไขข้อมูลโครงการ', 'Edit project')}</p>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อลูกค้า', 'Customer name')} *</label>
-                      <input type="text" value={epForm.customerName} onChange={(e) => setEpForm({ ...epForm, customerName: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อโครงการ / อาคาร', 'Project / building')}</label>
-                      <input type="text" value={epForm.project} onChange={(e) => setEpForm({ ...epForm, project: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ที่อยู่หน้างาน', 'Site address')}</label>
-                      <textarea value={epForm.address} onChange={(e) => setEpForm({ ...epForm, address: e.target.value })} rows="2" className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ราคาต่อเดือน (บาท)', 'Price per month')}</label>
-                        <input type="number" value={epForm.price} onChange={(e) => setEpForm({ ...epForm, price: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-stone-700 mb-1">{bi('จำนวนเดือน', 'Months')}</label>
-                        <input type="number" value={epForm.months} onChange={(e) => setEpForm({ ...epForm, months: e.target.value })} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
-                      </div>
-                    </div>
-                    {(Number(epForm.price) > 0 && Number(epForm.months) > 0) && (
-                      <p className="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded p-2">
-                        {bi('มูลค่าใหม่', 'New value')} <b>{baht(Number(epForm.price) * Math.floor(Number(epForm.months)))} ฿</b> · {Math.floor(Number(epForm.months))} {bi('งวดรายเดือน', 'monthly installments')}
-                      </p>
-                    )}
-                    <p className="text-xs text-stone-400">{bi('เปลี่ยนราคา/จำนวนเดือน ระบบจะปรับงวดรายเดือนให้ใหม่ · เอกสารที่ออกไปแล้วยังอยู่ในทะเบียนเหมือนเดิม', 'Changing price/months rebuilds the monthly installments · issued documents stay in the register')}</p>
-                    <div className="flex gap-2">
-                      <button onClick={() => setEditProjectOpen(false)} className="px-4 py-2.5 bg-white border border-stone-300 text-stone-600 rounded-lg font-medium">{bi('ยกเลิก', 'Cancel')}</button>
-                      <button onClick={() => saveEditProject(q)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold"><Save size={16} /> {bi('บันทึกการแก้ไข', 'Save changes')}</button>
-                    </div>
-                  </div>
-                )}
+                {editProjectQid === q.id && renderEditProjectForm(q)}
                 <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm mt-3 pt-3 border-t border-stone-100">
                   <span className="text-stone-700">{bi('มูลค่า', 'Value')} <b>{baht(q.total)} ฿</b></span>
                   <span className="text-emerald-700">{bi('รับแล้ว', 'Received')} <b>{baht(received)} ฿</b></span>
@@ -3437,8 +3441,12 @@ export default function QuotationSystem() {
                         <button onClick={() => setBillChoiceQ(q)} className="flex-1 min-w-[110px] flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white border border-violet-300 hover:bg-violet-50 text-violet-700 rounded-lg font-semibold text-sm"><Receipt size={16} /> {bi('เอกสาร', 'Documents')}</button>
                         <button onClick={() => openProject(q)} className="p-2.5 bg-white border border-stone-300 hover:bg-stone-50 rounded-lg text-amber-600" title={bi('เอกสารโครงการ', 'Project documents')}><FolderOpen size={16} /></button>
                         <button onClick={() => previewQuotation(q)} className="p-2.5 bg-white border border-stone-300 hover:bg-stone-50 rounded-lg text-stone-700" title={t('tipView')}><Eye size={16} /></button>
+                        {q.propertyType === 'consult' && (
+                          <button onClick={() => (editProjectQid === q.id ? setEditProjectQid(null) : openEditProject(q))} className={`p-2.5 rounded-lg ${editProjectQid === q.id ? 'bg-amber-200 text-amber-900' : 'bg-amber-100 hover:bg-amber-200 text-amber-800'}`} title={bi('แก้ไขข้อมูลโครงการ', 'Edit project info')}><Pencil size={16} /></button>
+                        )}
                         <button onClick={() => editQuotation(q)} className="p-2.5 bg-white border border-stone-300 hover:bg-stone-50 rounded-lg text-stone-700" title={t('tipEdit')}><FileText size={16} /></button>
                       </div>
+                      {q.propertyType === 'consult' && editProjectQid === q.id && renderEditProjectForm(q)}
                     </div>
                   );
                 })}
