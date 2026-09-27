@@ -1403,6 +1403,34 @@ export default function QuotationSystem() {
     return svc && !name.includes(svc) ? `${svc} — ${name}` : name;
   };
 
+  // เปิดกล่องลิงก์ใบวางบิลของงวดนั้น (จองเลขเอกสารให้ก่อนถ้ายังไม่เคยออก)
+  const shareBillLink = async (q, inst, idx) => {
+    let cur = q;
+    if (idx == null) cur = await issueTotalBillNo(q);
+    else {
+      const key = (inst?.name || '').trim();
+      if (!(q.bills || {})[key]) { await issueBillForInstallment(q, inst, idx); cur = quotations.find((x) => x.id === q.id) || q; }
+    }
+    setLinkCopied(false);
+    setReceiptLink({
+      kind: 'bill',
+      url: billUrl(cur, idx),
+      title: idx == null ? `${bi('ใบวางบิลยอดรวม', 'Invoice (grand total)')} · ${cur.customerName || ''}` : `${bi('ใบวางบิล', 'Invoice')} · ${inst?.name || ''}`,
+    });
+  };
+
+  // เปิดกล่องลิงก์ใบเสร็จ (idx = null คือใบเสร็จยอดรวม)
+  const shareReceiptLink = async (q, idx) => {
+    const cur = await issueReceiptNo(q, idx);
+    const inst = idx == null ? null : (cur.installments || [])[idx];
+    setLinkCopied(false);
+    setReceiptLink({
+      kind: 'receipt',
+      url: receiptUrl(cur, idx == null ? undefined : idx),
+      title: idx == null ? `${bi('ใบเสร็จยอดรวม', 'Total receipt')} · ${cur.customerName || ''}` : `${bi('ใบเสร็จ', 'Receipt')} · ${inst?.name || ''}`,
+    });
+  };
+
   // ===== เลขรันเอกสารของตัวเอง แยกตามชนิด + ปี พ.ศ. (INV-2569-001 / RC-2569-001) =====
   const nextDocNo = (type, dateStr) => {
     const year = Number(String(dateStr || '').slice(0, 4)) || new Date().getFullYear();
@@ -1709,9 +1737,15 @@ export default function QuotationSystem() {
                 })}
               </select>
               {selInst && (
-                <button onClick={() => { issueBillForInstallment(q, selInst, selIdx); setBillChoiceQ(null); }} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-semibold">
-                  <Receipt size={18} /> {(q.bills || {})[(selInst.name || '').trim()] ? bi('พิมพ์บิลซ้ำ', 'Reprint invoice') : bi('ออกใบวางบิลงวดนี้', 'Create invoice')} ({baht(selInst.amount)} ฿)
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => { issueBillForInstallment(q, selInst, selIdx); setBillChoiceQ(null); }} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-semibold">
+                    <Receipt size={18} /> {(q.bills || {})[(selInst.name || '').trim()] ? bi('พิมพ์บิลซ้ำ', 'Reprint invoice') : bi('ออกใบวางบิลงวดนี้', 'Create invoice')} ({baht(selInst.amount)} ฿)
+                  </button>
+                  <button onClick={() => { shareBillLink(q, selInst, selIdx); setBillChoiceQ(null); }} className="flex items-center justify-center gap-1 px-3 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold whitespace-nowrap" title={bi('สร้างลิงก์ส่งลูกค้า', 'Create customer link')}><Share2 size={18} /> {bi('ลิงก์', 'Link')}</button>
+                </div>
+              )}
+              {selInst && paidNames.has(selInst.name) && (
+                <button onClick={() => { shareReceiptLink(q, selIdx); setBillChoiceQ(null); }} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 rounded-lg font-semibold text-sm"><Share2 size={16} /> {bi('ลิงก์ใบเสร็จของงวดนี้', 'Receipt link for this one')}</button>
               )}
               {idx !== -1 && selIdx !== idx && (
                 <button onClick={() => setBillMonthIdx(idx)} className="w-full text-sm text-blue-600 hover:underline">{bi(`ไปที่งวดถัดไปที่ยังไม่จ่าย (งวดที่ ${idx + 1})`, `Jump to next unpaid (no. ${idx + 1})`)}</button>
@@ -1720,10 +1754,13 @@ export default function QuotationSystem() {
           ) : (
             <div className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-500">{t('noInstallments')}</div>
           )}
-          <button onClick={() => { printTotalBill(q); setBillChoiceQ(null); }} className="w-full text-left px-4 py-3 bg-white border border-stone-300 hover:border-violet-400 hover:bg-violet-50 rounded-lg">
-            <p className="font-semibold text-stone-800">{bi('วางบิลยอดรวม', 'Grand total')} <span className="text-violet-700">({baht(Number(q.total) || 0)} ฿)</span></p>
-            <p className="text-sm text-stone-500 mt-0.5">{bi('ทั้งยอดของใบเสนอราคาในบิลเดียว', 'Entire quotation in one invoice')}</p>
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => { printTotalBill(q); setBillChoiceQ(null); }} className="flex-1 text-left px-4 py-3 bg-white border border-stone-300 hover:border-violet-400 hover:bg-violet-50 rounded-lg">
+              <p className="font-semibold text-stone-800">{bi('วางบิลยอดรวม', 'Grand total')} <span className="text-violet-700">({baht(Number(q.total) || 0)} ฿)</span></p>
+              <p className="text-sm text-stone-500 mt-0.5">{bi('ทั้งยอดของใบเสนอราคาในบิลเดียว', 'Entire quotation in one invoice')}</p>
+            </button>
+            <button onClick={() => { shareBillLink(q, null, null); setBillChoiceQ(null); }} className="flex items-center justify-center gap-1 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold whitespace-nowrap" title={bi('สร้างลิงก์ส่งลูกค้า', 'Create customer link')}><Share2 size={18} /></button>
+          </div>
           <button onClick={() => setBillChoiceQ(null)} className="w-full px-4 py-2.5 bg-white border border-stone-300 text-stone-600 rounded-lg font-medium">{bi('ยกเลิก', 'Cancel')}</button>
         </div>
       </div>
@@ -1786,12 +1823,15 @@ export default function QuotationSystem() {
                         {txn.slip && <img src={txn.slip} alt="slip" className="w-9 h-9 rounded object-cover border border-stone-200" />}
                         <button onClick={() => openTxn('in', txn)} className="flex items-center gap-1 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-sm whitespace-nowrap"><Pencil size={14} /> {bi('แก้ไข', 'Edit')}</button>
                         <button onClick={() => issueBillForInstallment(q, inst, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-stone-300 text-stone-700 rounded-lg text-sm whitespace-nowrap"><FileText size={14} /> {t('billBtn')}</button>
+                        <button onClick={() => shareBillLink(q, inst, idx)} className="flex items-center gap-1 px-2.5 py-1.5 bg-white border border-violet-300 text-violet-700 hover:bg-violet-50 rounded-lg text-sm whitespace-nowrap" title={bi('ลิงก์ใบวางบิล', 'Invoice link')}><Share2 size={14} /></button>
                         <button onClick={() => openReceiptReview(q, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-slate-900 text-amber-200 rounded-lg text-sm whitespace-nowrap"><Printer size={14} /> {t('receiptBtn')}</button>
+                        <button onClick={() => shareReceiptLink(q, idx)} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm whitespace-nowrap" title={bi('ลิงก์ใบเสร็จ', 'Receipt link')}><Share2 size={14} /></button>
                       </div>
                     </div>
                   ) : (
                     <div className="mt-2 flex gap-2">
                       <button onClick={() => issueBillForInstallment(q, inst, idx)} className="flex items-center justify-center gap-1 px-4 py-2.5 bg-white border border-violet-300 text-violet-700 hover:bg-violet-50 rounded-lg font-medium whitespace-nowrap"><FileText size={16} /> {bill ? bi('พิมพ์บิลซ้ำ', 'Reprint') : t('billBtn')}</button>
+                      <button onClick={() => shareBillLink(q, inst, idx)} className="flex items-center justify-center gap-1 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium whitespace-nowrap" title={bi('ลิงก์ใบวางบิล', 'Invoice link')}><Share2 size={16} /></button>
                       <button onClick={() => setTxnForm({ ...newTxn('in'), quotationId: q.id, quotationLabel: label, installment: inst.name, amount: inst.amount || '' })} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold"><TrendingUp size={16} /> {t('confirmReceived')}</button>
                     </div>
                   )}
@@ -3310,7 +3350,7 @@ export default function QuotationSystem() {
                 </div>
                 <div className="flex gap-2 mt-3">
                   <button onClick={() => printTotalBill(q)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-violet-300 hover:bg-violet-50 text-violet-700 rounded-lg font-semibold text-sm"><Receipt size={16} /> {bi('ใบวางบิลยอดรวม', 'Invoice (grand total)')} ({baht(Number(q.total) || 0)} ฿)</button>
-                  <button onClick={async () => { const cur = await issueTotalBillNo(q); setLinkCopied(false); setReceiptLink({ kind: 'bill', url: billUrl(cur, null), title: `${bi('ใบวางบิลยอดรวม', 'Invoice (grand total)')} · ${cur.customerName || ''}` }); }} className="flex items-center justify-center gap-1 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold whitespace-nowrap" title={bi('ส่งลิงก์ให้ลูกค้า', 'Share link')}><Share2 size={16} /> {bi('ลิงก์', 'Link')}</button>
+                  <button onClick={() => shareBillLink(q, null, null)} className="flex items-center justify-center gap-1 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold whitespace-nowrap" title={bi('ส่งลิงก์ให้ลูกค้า', 'Share link')}><Share2 size={16} /> {bi('ลิงก์', 'Link')}</button>
                 </div>
               </div>
 
@@ -3341,13 +3381,15 @@ export default function QuotationSystem() {
                           {txn.slip && <img src={txn.slip} alt="slip" className="w-9 h-9 rounded object-cover border border-stone-200" />}
                           <button onClick={() => openTxn('in', txn)} className="flex items-center gap-1 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-sm whitespace-nowrap"><Pencil size={14} /> {bi('แก้ไข', 'Edit')}</button>
                           <button onClick={() => issueBillForInstallment(q, inst, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-stone-300 text-stone-700 rounded-lg text-sm whitespace-nowrap"><FileText size={14} /> {t('billBtn')}</button>
+                          <button onClick={() => shareBillLink(q, inst, idx)} className="flex items-center gap-1 px-2.5 py-1.5 bg-white border border-violet-300 text-violet-700 hover:bg-violet-50 rounded-lg text-sm whitespace-nowrap" title={bi('ลิงก์ใบวางบิล', 'Invoice link')}><Share2 size={14} /></button>
                           <button onClick={() => openReceiptReview(q, idx)} className="flex items-center gap-1 px-3 py-1.5 bg-slate-900 text-amber-200 rounded-lg text-sm whitespace-nowrap"><Printer size={14} /> {t('receiptBtn')}</button>
+                          <button onClick={() => shareReceiptLink(q, idx)} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm whitespace-nowrap" title={bi('ลิงก์ใบเสร็จ', 'Receipt link')}><Share2 size={14} /></button>
                         </div>
                       </div>
                     ) : (
                       <div className="mt-2 flex gap-2">
                         <button onClick={() => issueBillForInstallment(q, inst, idx)} className="flex items-center justify-center gap-1 px-4 py-2.5 bg-white border border-violet-300 text-violet-700 hover:bg-violet-50 rounded-lg font-medium whitespace-nowrap"><FileText size={16} /> {bill ? bi('พิมพ์บิลซ้ำ', 'Reprint') : t('billBtn')}</button>
-                        <button onClick={async () => { await issueBillForInstallment(q, inst, idx); const cur = quotations.find((x) => x.id === q.id) || q; setLinkCopied(false); setReceiptLink({ kind: 'bill', url: billUrl(cur, idx), title: `${bi('ใบวางบิล', 'Invoice')} · ${inst.name}` }); }} className="flex items-center justify-center gap-1 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium whitespace-nowrap" title={bi('ส่งลิงก์ให้ลูกค้า', 'Share link')}><Share2 size={16} /></button>
+                        <button onClick={() => shareBillLink(q, inst, idx)} className="flex items-center justify-center gap-1 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium whitespace-nowrap" title={bi('ส่งลิงก์ให้ลูกค้า', 'Share link')}><Share2 size={16} /></button>
                         <button onClick={() => setTxnForm({ ...newTxn('in'), quotationId: q.id, quotationLabel: label, installment: inst.name, amount: inst.amount || '' })} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-semibold"><TrendingUp size={16} /> {t('confirmReceived')}</button>
                       </div>
                     )}
@@ -3387,6 +3429,7 @@ export default function QuotationSystem() {
       <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
         <PaymentsModal />
         <BillChoiceModal />
+        <ReceiptLinkModal />
         <ShareLinkModal />
         <ReceiptReviewOverlay />
         <ReceiptLinkModal />
