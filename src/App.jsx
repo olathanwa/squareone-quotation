@@ -3105,6 +3105,27 @@ export default function QuotationSystem() {
     const billedCount = q ? Object.keys(q.bills || {}).length : 0;
     const label = q ? `${q.customerName || ''}${q.project ? ' · ' + q.project : ''}` : '';
 
+    // ===== ข้อมูลตารางติดตาม: ทุกโครงการ × ทุกเดือน =====
+    const maxMonths = projects.reduce((m, pj) => Math.max(m, (pj.installments || []).length), 0);
+    const trackRows = projects.map((pj) => {
+      const txns = transactions.filter((tx) => tx.type === 'in' && tx.quotationId === pj.id);
+      const paidByName = {};
+      txns.forEach((tx) => { const k = (tx.installment || '').trim(); paidByName[k] = (paidByName[k] || 0) + (Number(tx.amount) || 0); });
+      const cells = Array.from({ length: maxMonths }, (_, i) => {
+        const inst = (pj.installments || [])[i];
+        if (!inst) return null;
+        const key = (inst.name || '').trim();
+        const paid = paidByName[key] || 0;
+        const billed = !!(pj.bills || {})[key];
+        return { amount: Number(inst.amount) || 0, paid, billed, status: paid > 0 ? 'paid' : billed ? 'billed' : 'none' };
+      });
+      const recv = txns.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+      return { pj, cells, total: Number(pj.total) || 0, received: recv, due: Math.max(0, (Number(pj.total) || 0) - recv) };
+    });
+    const monthTotals = Array.from({ length: maxMonths }, (_, i) => trackRows.reduce((sum, r) => sum + (r.cells[i]?.paid || 0), 0));
+    const grand = trackRows.reduce((acc, r) => ({ total: acc.total + r.total, received: acc.received + r.received, due: acc.due + r.due }), { total: 0, received: 0, due: 0 });
+    const cellCls = (c) => c.status === 'paid' ? 'bg-emerald-50 text-emerald-800' : c.status === 'billed' ? 'bg-violet-50 text-violet-800' : 'bg-white text-stone-400';
+
     return (
       <div className={`min-h-screen bg-stone-100 ${isDark ? 'sqdark' : ''}`} style={{ fontFamily: "'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif" }}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap'); * { font-family: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; }` + DARK_CSS}</style>
@@ -3120,7 +3141,66 @@ export default function QuotationSystem() {
           </div>
         </div>
 
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+          {/* ===== ตารางติดตามรายเดือน: ยอดของแต่ละเดือน ทุกโครงการ ===== */}
+          {trackRows.length > 0 && maxMonths > 0 && (
+            <div className="bg-white border border-stone-200 rounded-lg p-4">
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                <p className="font-semibold text-stone-800">📊 {bi('ติดตามรายเดือน', 'Monthly tracking')}</p>
+                <div className="flex items-center gap-3 text-xs text-stone-500">
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-emerald-200"></span>{bi('รับเงินแล้ว', 'Paid')}</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-violet-200"></span>{bi('วางบิลแล้ว', 'Invoiced')}</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border border-stone-300 bg-white"></span>{bi('ยังไม่วางบิล', 'Not invoiced')}</span>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse" style={{ minWidth: `${320 + maxMonths * 84}px` }}>
+                  <thead>
+                    <tr className="bg-stone-50 text-stone-600">
+                      <th className="text-left px-3 py-2 font-semibold sticky left-0 bg-stone-50 z-10">{bi('ลูกค้า / โครงการ', 'Customer / project')}</th>
+                      {Array.from({ length: maxMonths }, (_, i) => (
+                        <th key={i} className="px-2 py-2 font-semibold whitespace-nowrap text-center">{bi('เดือน', 'M')} {i + 1}</th>
+                      ))}
+                      <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">{bi('มูลค่า', 'Value')}</th>
+                      <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">{bi('รับแล้ว', 'Received')}</th>
+                      <th className="px-3 py-2 font-semibold text-right whitespace-nowrap">{bi('ค้าง', 'Due')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trackRows.map((r) => (
+                      <tr key={r.pj.id} className={`border-t border-stone-100 ${billingQid === r.pj.id ? 'bg-amber-50/60' : ''}`}>
+                        <td className={`px-3 py-2 sticky left-0 z-10 ${billingQid === r.pj.id ? 'bg-amber-50' : 'bg-white'}`}>
+                          <button onClick={() => { setBillingQid(r.pj.id); setEditProjectQid(null); }} className="text-left hover:underline">
+                            <span className="font-medium text-stone-800 block truncate max-w-[220px]">{r.pj.customerName || t('noName')}</span>
+                            {r.pj.project && <span className="text-xs text-stone-500 block truncate max-w-[220px]">{r.pj.project}</span>}
+                          </button>
+                        </td>
+                        {r.cells.map((c, i) => (
+                          <td key={i} className={`px-2 py-2 text-center whitespace-nowrap border-l border-stone-100 ${c ? cellCls(c) : 'text-stone-300'}`}>
+                            {c ? baht(c.status === 'paid' ? c.paid : c.amount) : '—'}
+                          </td>
+                        ))}
+                        <td className="px-3 py-2 text-right font-semibold text-stone-800 whitespace-nowrap border-l border-stone-100">{baht(r.total)}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-emerald-700 whitespace-nowrap">{baht(r.received)}</td>
+                        <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${r.due > 0 ? 'text-amber-700' : 'text-stone-400'}`}>{r.due > 0 ? baht(r.due) : '-'}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t-2 border-stone-300 bg-stone-50 font-bold">
+                      <td className="px-3 py-2 sticky left-0 bg-stone-50 z-10">{bi('รับเงินรวมรายเดือน', 'Received per month')}</td>
+                      {monthTotals.map((v, i) => (
+                        <td key={i} className="px-2 py-2 text-center whitespace-nowrap border-l border-stone-200 text-emerald-700">{v > 0 ? baht(v) : '-'}</td>
+                      ))}
+                      <td className="px-3 py-2 text-right whitespace-nowrap border-l border-stone-200">{baht(grand.total)}</td>
+                      <td className="px-3 py-2 text-right text-emerald-700 whitespace-nowrap">{baht(grand.received)}</td>
+                      <td className="px-3 py-2 text-right text-amber-700 whitespace-nowrap">{grand.due > 0 ? baht(grand.due) : '-'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-stone-400 mt-2">{bi('ช่องสีเขียว = ยอดที่รับเงินแล้ว · สีม่วง = วางบิลแล้วรอเก็บเงิน · แตะชื่อลูกค้าเพื่อเปิดออกบิลของโครงการนั้น', 'Green = received · Violet = invoiced, awaiting payment · Tap a customer to open their invoices')}</p>
+            </div>
+          )}
+
           {/* เลือกลูกค้า / โครงการ ที่จะวางบิล */}
           <div className="bg-white border border-stone-200 rounded-lg p-4">
             <label className="block text-sm font-medium text-stone-700 mb-1">👤 {bi('เลือกลูกค้า / โครงการที่จะวางบิล', 'Select customer / project to invoice')}</label>
