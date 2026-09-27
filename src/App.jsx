@@ -328,7 +328,7 @@ ${stamp ? `<div style="margin-top:28px;text-align:right"><img src="${stamp}" sty
 };
 
 // ใบวางบิล/วางบิลรายงวด (ขอเก็บเงินก่อนชำระ) — พิมพ์ได้ กระดาษขาว
-const buildBillHTML = ({ company, customer, customerAddress, project, quotationNo, billNo, itemName, amount, amountWords, dateStr, bankInfo, showQR, lang, whtMode, stamp }) => {
+const buildBillHTML = ({ company, customer, customerAddress, project, quotationNo, billNo, itemName, amount, amountWords, dateStr, bankInfo, showQR, lang, whtMode, stamp, signerName, signerTitle }) => {
   const en = lang === 'en';
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
   const n2 = (n) => (Number(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -386,7 +386,7 @@ ${amountWords ? `<tr><td colspan="2" style="text-align:right;font-style:italic">
   <div><div style="font-weight:700;margin-bottom:4px">${L.pay}</div>${bankInfo ? `<div>${esc(bankInfo)}</div>` : ''}<div class="muted" style="margin-top:6px">${L.note}</div></div>
 </div>
 ${stamp ? `<div class="stamp" style="margin-top:18px;text-align:left"><img src="${stamp}" style="height:96px;width:auto;object-fit:contain"/></div>` : ''}
-<div class="sign"><div>........................................<br>${L.issuer}</div><div>........................................<br>${L.receiver}</div></div>
+<div class="sign"><div>........................................<br>${L.issuer}${signerName ? `<br><strong>(${esc(signerName)})</strong>` : ''}${signerTitle ? `<br><span class="muted">${esc(signerTitle)}</span>` : ''}</div><div>........................................<br>${L.receiver}</div></div>
 </body></html>`;
 };
 
@@ -495,6 +495,8 @@ export default function QuotationSystem() {
     companyAddress: 'เลขที่ 4 ซอย 6 ถนนสุขเกษม ตำบลสุเทพ อำเภอเมือง จังหวัดเชียงใหม่ 50200',
     companyPhone: '069-698-1565',
     companyTaxId: '0505567004139',
+    signerName: 'นายธันวา ทะนามแสง',
+    signerTitle: 'กรรมการผู้จัดการ',
     bankName: 'ธนาคารกสิกรไทย',
     accountName: 'บริษัท สแควร์วัน ดีไซน์ แอนด์ อินสเปคเตอร์ จำกัด',
     accountNumber: '219-3-18667-2',
@@ -1672,6 +1674,7 @@ export default function QuotationSystem() {
       billNo: (q.bills || {})[(inst?.name || '').trim()]?.no || `${q.quotationNo || 'INV'}-B${idx + 1}`,
       itemName: instItemName(q, inst), amount: amt, amountWords: numberToThaiWords(amt),
       dateStr: formatDate(rec?.date || new Date().toISOString().slice(0, 10)), bankInfo: q.bankInfo, showQR: q.showQR !== false, lang, whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), stamp: settings.stampImage,
+      signerName: settings.signerName ?? DEFAULT_SETTINGS.signerName, signerTitle: settings.signerTitle ?? DEFAULT_SETTINGS.signerTitle,
     });
   };
   const printBillForInstallment = (q, inst, idx) => openOrDownload(billHtmlInstallment(q, inst, idx), `ใบวางบิล_${q.quotationNo || 'INV'}.html`);
@@ -1687,6 +1690,7 @@ export default function QuotationSystem() {
       itemName: bi(`ค่าบริการตามใบเสนอราคาเลขที่ ${q.quotationNo || '-'} (ยอดรวมทั้งสิ้น)`, `Services per quotation ${q.quotationNo || '-'} (grand total)`),
       amount: amt, amountWords: numberToThaiWords(amt),
       dateStr: formatDate(rec?.date || new Date().toISOString().slice(0, 10)), bankInfo: q.bankInfo, showQR: q.showQR !== false, lang, whtMode: q.whtMode || (q.withholdingTax ? 'deduct' : 'none'), stamp: settings.stampImage,
+      signerName: settings.signerName ?? DEFAULT_SETTINGS.signerName, signerTitle: settings.signerTitle ?? DEFAULT_SETTINGS.signerTitle,
     });
   };
   const printTotalBill = async (qIn) => {
@@ -2016,6 +2020,24 @@ export default function QuotationSystem() {
                     value={settingsForm.companyTaxId}
                     onChange={(e) => setSettingsForm({ ...settingsForm, companyTaxId: e.target.value })}
                     className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ชื่อผู้ลงนาม (ผู้เสนอราคา/ผู้วางบิล)', 'Signer name')}</label>
+                  <input
+                    type="text"
+                    value={settingsForm.signerName ?? ''}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, signerName: e.target.value })}
+                    className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">{bi('ตำแหน่งผู้ลงนาม', 'Signer title')}</label>
+                  <input
+                    type="text"
+                    value={settingsForm.signerTitle ?? ''}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, signerTitle: e.target.value })}
+                    className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700"
                   />
                 </div>
               </div>
@@ -3054,6 +3076,14 @@ export default function QuotationSystem() {
               {settings.stampImage && <img src={settings.stampImage} alt="stamp" className="mx-auto mb-2 h-24 w-auto object-contain" />}
               <p className="font-semibold">{dl('ขอขอบพระคุณที่ท่านให้ความสนใจในบริการของทีมงาน', 'Thank you for considering our services')}</p>
               <p className="text-stone-700 italic">SQUAREONE DESIGN AND INSPECTOR</p>
+              <div className="mt-6 flex justify-end">
+                <div className="text-center" style={{ minWidth: '220px' }}>
+                  <p className="text-stone-500">........................................</p>
+                  <p className="font-semibold text-stone-800">({tv(settings.signerName ?? DEFAULT_SETTINGS.signerName)})</p>
+                  <p className="text-stone-600 text-sm">{tv(settings.signerTitle ?? DEFAULT_SETTINGS.signerTitle)}</p>
+                  <p className="text-stone-500 text-sm">{dl('ผู้เสนอราคา', 'Authorized by')}</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
