@@ -1061,6 +1061,8 @@ export default function QuotationSystem() {
       items: [{ ...CONSULT_ITEM, quantity: months, price, autoCalculated: false }],
       installments: buildMonthlyInstallments(price, months),
       total: price * months,
+      whtMode: ncForm.whtMode || 'none',
+      withholdingTax: (ncForm.whtMode || 'none') !== 'none',
       status: 'accepted',
       savedAt: new Date().toISOString(),
     };
@@ -1079,6 +1081,7 @@ export default function QuotationSystem() {
       address: q.address || '',
       price: q.items?.[0]?.price ?? '',
       months: q.items?.[0]?.quantity ?? (q.installments || []).length,
+      whtMode: whtOf(q),
     });
     setEditProjectQid(q.id);
   };
@@ -1111,9 +1114,22 @@ export default function QuotationSystem() {
       items,
       installments: nextInsts,
       total: price * months + others,
+      whtMode: epForm.whtMode || 'none',
+      withholdingTax: (epForm.whtMode || 'none') !== 'none',
     });
     setEditProjectQid(null);
   };
+
+  // ตัวเลือกหัก ณ ที่จ่าย 3% — ใช้ทั้งในฟอร์มโครงการและป็อปอัปออกใบวางบิล
+  const WHT_OPTIONS = [
+    { v: 'none', label: bi('ไม่หัก', 'None'), desc: bi('ไม่มีหัก ณ ที่จ่าย', 'No withholding') },
+    { v: 'deduct', label: bi('หักออกจากราคา', 'Deduct'), desc: bi('ลูกค้าจ่าย ราคา − 3%', 'Client pays price − 3%') },
+    { v: 'included', label: bi('ราคารวมหักแล้ว', 'Included'), desc: bi('ลูกค้าจ่ายเต็ม + หมายเหตุ', 'Client pays full + note') },
+  ];
+  const whtOf = (q) => q?.whtMode || (q?.withholdingTax ? 'deduct' : 'none');
+
+  // เปลี่ยนวิธีหัก ณ ที่จ่ายของใบนั้น แล้วบันทึกทันที (ใบวางบิล/ใบเสร็จที่ออกหลังจากนี้ใช้ค่าใหม่)
+  const setWhtMode = async (q, mode) => { await saveQuotationPatch(q, { whtMode: mode, withholdingTax: mode !== 'none' }); };
 
   // ฟอร์มแก้ไขข้อมูลโครงการที่ปรึกษา — ใช้ทั้งบนการ์ดหน้าแรกและหน้าใบวางบิล
   // (เป็นฟังก์ชันคืน JSX ไม่ใช่คอมโพเนนต์ใหม่ เพื่อให้ช่องพิมพ์ไม่หลุดโฟกัสระหว่างพิมพ์)
@@ -1147,6 +1163,17 @@ export default function QuotationSystem() {
           {bi('มูลค่าใหม่', 'New value')} <b>{baht(Number(epForm.price) * Math.floor(Number(epForm.months)))} ฿</b> · {Math.floor(Number(epForm.months))} {bi('งวดรายเดือน', 'monthly installments')}
         </p>
       )}
+      <div>
+        <label className="block text-sm font-medium text-stone-700 mb-1">{bi('หัก ณ ที่จ่าย 3% (ลูกค้านิติบุคคล)', 'Withholding tax 3%')}</label>
+        <div className="flex flex-col sm:flex-row gap-2">
+          {WHT_OPTIONS.map((o) => (
+            <button key={o.v} type="button" onClick={() => setEpForm({ ...epForm, whtMode: o.v })} className={`flex-1 text-left px-3 py-2 rounded-lg border ${epForm.whtMode === o.v ? 'bg-emerald-700 border-emerald-700 text-white' : 'bg-white border-stone-300 text-stone-700 hover:bg-stone-50'}`}>
+              <div className="font-semibold text-sm">{o.label}</div>
+              <div className={`text-xs ${epForm.whtMode === o.v ? 'text-emerald-100' : 'text-stone-500'}`}>{o.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
       <p className="text-xs text-stone-400">{bi('เปลี่ยนราคา/จำนวนเดือน ระบบจะปรับงวดรายเดือนให้ใหม่ · เอกสารที่ออกไปแล้วยังอยู่ในทะเบียนเหมือนเดิม', 'Changing price/months rebuilds the monthly installments · issued documents stay in the register')}</p>
       <div className="flex gap-2">
         <button onClick={() => setEditProjectQid(null)} className="px-4 py-2.5 bg-white border border-stone-300 text-stone-600 rounded-lg font-medium">{bi('ยกเลิก', 'Cancel')}</button>
@@ -1394,6 +1421,7 @@ export default function QuotationSystem() {
     try { await window.storage.set(`quotation:${q.id}`, JSON.stringify(updated)); } catch (e) { console.error(e); }
     setQuotations((prev) => prev.map((x) => (x.id === q.id ? updated : x)));
     if (paymentQ && paymentQ.id === q.id) setPaymentQ(updated);
+    if (billChoiceQ && billChoiceQ.id === q.id) setBillChoiceQ(updated);
     return updated;
   };
 
@@ -1740,6 +1768,20 @@ export default function QuotationSystem() {
                   return <option key={i} value={i}>{`${i + 1}. ${inst.name} · ${baht(inst.amount)} ฿ (${tag})`}</option>;
                 })}
               </select>
+              <div className="pt-1">
+                <p className="text-sm font-medium text-stone-700 mb-1">{bi('หัก ณ ที่จ่าย 3%', 'Withholding tax 3%')}</p>
+                <div className="flex gap-1.5">
+                  {WHT_OPTIONS.map((o) => (
+                    <button key={o.v} type="button" onClick={() => setWhtMode(q, o.v)} className={`flex-1 px-2 py-2 rounded-lg border text-xs font-semibold ${whtOf(q) === o.v ? 'bg-emerald-700 border-emerald-700 text-white' : 'bg-white border-stone-300 text-stone-700 hover:bg-stone-50'}`}>{o.label}</button>
+                  ))}
+                </div>
+                {selInst && whtOf(q) === 'deduct' && (
+                  <p className="text-xs text-stone-500 mt-1">{bi('ลูกค้าจ่ายสุทธิ', 'Net payable')} <b className="text-stone-700">{baht(Math.round(((Number(selInst.amount) || 0) * 0.97) * 100) / 100)} ฿</b> ({bi('หักแล้ว', 'after')} {baht(Math.round(((Number(selInst.amount) || 0) * 0.03) * 100) / 100)} ฿)</p>
+                )}
+                {whtOf(q) === 'included' && (
+                  <p className="text-xs text-stone-500 mt-1">{bi('บิลจะมีหมายเหตุว่าราคารวมหัก ณ ที่จ่ายแล้ว', 'Invoice notes that price includes withholding tax')}</p>
+                )}
+              </div>
               {selInst && (
                 <div className="flex gap-2">
                   <button onClick={() => { issueBillForInstallment(q, selInst, selIdx); setBillChoiceQ(null); }} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-semibold">
@@ -3337,6 +3379,17 @@ export default function QuotationSystem() {
                     <input type="number" value={ncForm.months} onChange={(e) => setNcForm({ ...ncForm, months: e.target.value })} placeholder={bi('เช่น 6', 'e.g. 6')} className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:border-emerald-700" />
                   </div>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">{bi('หัก ณ ที่จ่าย 3% (ลูกค้านิติบุคคล)', 'Withholding tax 3%')}</label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    {WHT_OPTIONS.map((o) => (
+                      <button key={o.v} type="button" onClick={() => setNcForm({ ...ncForm, whtMode: o.v })} className={`flex-1 text-left px-3 py-2 rounded-lg border ${(ncForm.whtMode || 'none') === o.v ? 'bg-emerald-700 border-emerald-700 text-white' : 'bg-white border-stone-300 text-stone-700 hover:bg-stone-50'}`}>
+                        <div className="font-semibold text-sm">{o.label}</div>
+                        <div className={`text-xs ${(ncForm.whtMode || 'none') === o.v ? 'text-emerald-100' : 'text-stone-500'}`}>{o.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 {(Number(ncForm.price) > 0 && Number(ncForm.months) > 0) && (
                   <p className="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded p-2">
                     {bi('มูลค่าโครงการ', 'Project value')} <b>{baht(Number(ncForm.price) * Math.floor(Number(ncForm.months)))} ฿</b> · {bi('แบ่งเป็น', 'split into')} {Math.floor(Number(ncForm.months))} {bi('งวดรายเดือน (เบิกก่อนวันที่ 5 ของเดือน)', 'monthly installments')}
@@ -3377,6 +3430,7 @@ export default function QuotationSystem() {
                   <span className="text-emerald-700">{bi('รับแล้ว', 'Received')} <b>{baht(received)} ฿</b></span>
                   {outstanding > 0 && <span className="text-amber-700">{bi('ค้าง', 'Due')} <b>{baht(outstanding)} ฿</b></span>}
                   <span className="text-violet-700">{bi('วางบิลแล้ว', 'Invoiced')} <b>{billedCount}/{insts.length}</b></span>
+                  {whtOf(q) !== 'none' && <span className="text-stone-600">{bi('หัก ณ ที่จ่าย', 'WHT')} <b>{whtOf(q) === 'deduct' ? bi('หักจากราคา', 'deducted') : bi('รวมแล้ว', 'included')}</b></span>}
                 </div>
                 <div className="flex gap-2 mt-3">
                   <button onClick={() => printTotalBill(q)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-violet-300 hover:bg-violet-50 text-violet-700 rounded-lg font-semibold text-sm"><Receipt size={16} /> {bi('ใบวางบิลยอดรวม', 'Invoice (grand total)')} ({baht(Number(q.total) || 0)} ฿)</button>
